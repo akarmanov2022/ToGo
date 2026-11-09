@@ -29,7 +29,7 @@ fi
 
 # Проверяем compose-файл
 if [[ ! -f "$COMPOSE_FILE" ]]; then
-    echo "ERROR: docker-compose.yml not found"
+    echo "ERROR: docker-compose.yml not found at $COMPOSE_FILE"
     exit 1
 fi
 
@@ -37,13 +37,18 @@ cd "$ROOT_DIR"
 
 echo "Building and starting services..."
 
-docker compose \
+if docker compose \
     -f "$COMPOSE_FILE" \
-    up --build -d --remove-orphans
+    up --build -d --remove-orphans; then
 
-echo ""
-echo "=================================="
-echo " ToGo started successfully!"
-echo "=================================="
-
-docker compose -f "$COMPOSE_FILE" ps
+    echo ""
+    echo "=================================="
+    echo " ToGo started successfully!"
+    echo "=================================="
+    echo ""
+    docker compose -f "$COMPOSE_FILE" ps
+else
+    echo ""
+    echo "ERROR: Failed to start services"
+    exit 1
+fi
