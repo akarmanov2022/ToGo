@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { LocationPicker, type Coordinates } from '@/modules/Map'
 import { categories } from './data'
+const coordinates = ref<Coordinates | null>(null)
 const title = ref(''),
   category = ref('Кафе'),
   place = ref(''),
@@ -31,8 +33,9 @@ const title = ref(''),
         <div class="form-row">
           <label>Дата<input type="date" /></label><label>Время<input type="time" /></label>
         </div>
-        <label>Место<input v-model="place" placeholder="Центр" /></label>
-        <div class="form-row">
+        <label>Место<input v-model="place" placeholder="Например, Невский проспект, 28" /></label>
+        <LocationPicker v-model="coordinates" :address="place" />
+        <div class="participants-fields">
           <label
             >Минимум участников<input v-model.number="min" type="number" min="1" max="50" /></label
           ><label
@@ -59,3 +62,11 @@ const title = ref(''),
     </div>
   </section>
 </template>
+
+<style scoped>
+.participants-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+</style>
