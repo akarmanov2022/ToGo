@@ -9,7 +9,7 @@
 - `api/openapi.yaml`: контракт API. `openapi-generator` (`kotlin-spring`, `serviceInterface=true`) генерирует
   контроллеры и по одному интерфейсу сервиса на тег в пакет `itmo.goto.generated`. Классы, написанные вручную, например
   `EventsService`, реализуют эти интерфейсы.
-- `frontend`: пока только README.
+- `frontend`: каркас Vue 3 на Vite со страницами ленты, создания события, профиля и карты.
 - `infra/docker-compose.yml`: контейнер PostgreSQL 18.
 
 ## Goals / Non-Goals
@@ -25,31 +25,47 @@
 
 - Горизонтальное масштабирование и кэширование. Из фоновой обработки нужен только переход состояний событий по срокам.
 - Доступность и локализация сверх русского текста интерфейса.
-- Инструменты администратора: справочник интересов меняется через миграции.
+- Инструменты администратора: справочник категорий меняется через миграции.
 
 ## Decisions
 
-### 1. Сначала контракт, интерфейсы сервера генерируются
+### 1. Контракт — источник истины, интерфейсы сервера генерируются
 
-Каждый эндпоинт сначала описывается в `api/openapi.yaml`, потом пишется код. Бэкенд реализует сгенерированные интерфейсы
-`*ApiService`. Фронтенд генерирует типы TypeScript из того же файла и работает на заглушках, пока бэкенд не готов.
+`api/openapi.yaml` — источник истины для API. Если спецификации или этот документ расходятся с контрактом, верен
+контракт, а артефакты исправляются. Каждый новый эндпоинт сначала описывается в контракте, потом пишется код. Бэкенд
+реализует сгенерированные интерфейсы `*ApiService`. Фронтенд генерирует типы TypeScript из того же файла и работает
+на заглушках, пока бэкенд не готов. Существующие поля и эндпоинты не меняются; недостающее добавляется новыми
+необязательными полями, параметрами и эндпоинтами.
 
-Планируемый набор эндпоинтов (теги в квадратных скобках):
+Эндпоинты контракта (теги в квадратных скобках, «+» — добавление этого изменения):
 
-| Метод и путь                                                                                                                  | Назначение                                    |
-|-------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------|
-| `POST /api/v1/auth/telegram`, `GET /api/v1/users/me`                                               | [Auth] user-auth                              |
-| `GET /api/v1/interests`                                                                                                       | [Profile] справочник                          |
-| `GET /api/v1/profile`, `PUT /api/v1/profile`, `GET /api/v1/users/{id}`                                                        | [Profile] свой и чужой профиль                |
-| `GET /api/v1/events?interest=&city=&from=&to=&hasFreePlaces=`                                                                 | [Events] лента и фильтры                      |
-| `POST /api/v1/events`, `GET /api/v1/events/{id}`, `PATCH /api/v1/events/{id}`, `POST /api/v1/events/{id}/cancel`                                           | [Events] создание, карточка, отмена           |
-| `POST /api/v1/events/{id}/participants`, `DELETE /api/v1/events/{id}/participants/me`, `GET /api/v1/events/{id}/participants` | [Participation] присоединиться, выйти, список |
-| `GET /api/v1/me/events`                                                                                                       | [Participation] мои события                   |
-| `GET /api/v1/events/{id}/comments`, `POST /api/v1/events/{id}/comments`                                                       | [Comments]                                    |
+| Метод и путь                                                                     | Назначение                                     |
+|----------------------------------------------------------------------------------|------------------------------------------------|
+| `POST /api/v1/auth/telegram`                                                     | [Auth] вход по initData                        |
+| `GET /api/v1/users/me`, + `PUT /api/v1/users/me`                                 | [Users] свой профиль                           |
+| + `GET /api/v1/users/{userId}`                                                   | [Users] чужой профиль                          |
+| `GET /api/v1/categories`                                                         | [Categories] справочник                        |
+| `GET /api/v1/events?query=&categoryId=&startsFrom=&startsTo=&state=&participating=&limit=&offset=`, + `hasFreePlaces=` | [Events] лента, фильтры, «мои события» |
+| `POST /api/v1/events`, `GET /api/v1/events/{eventId}`, `PATCH /api/v1/events/{eventId}` | [Events] создание, карточка, изменение  |
+| `POST /api/v1/events/{eventId}/cancel`                                           | [Events] отмена организатором                  |
+| `GET /api/v1/events/{eventId}/participants`                                      | [Events] список участников                     |
+| `PUT` и `DELETE /api/v1/events/{eventId}/participants/me`                        | [Events] присоединиться и выйти                |
+| + `GET` и `POST /api/v1/events/{eventId}/comments`                               | [Comments] комментарии                         |
 
-Ошибки возвращаются в формате problem details по RFC 9457 (`ProblemDetail` из Spring): 400 при ошибке валидации с
-именами полей, 401 без входа, 403 при запрете доступа, 404 если не найдено, 409 при нарушении правил с понятным текстом
-в `detail`.
+Добавления схем:
+
+- `CurrentUser` получает `name`, `photoUrl` (nullable), `city` (nullable) и `categories`; новые `UserProfile`
+  (без `tgId`) и `UpdateProfileRequest` с `name`, `city` и `categoryIds`.
+- `Event` и `CreateEventRequest` получают nullable `latitude` и `longitude`; в `PATCH` их нет, как и `location`.
+- `CreateEventRequest` и `UpdateEventRequest`: `maxLength: 100` у `title`, `maxLength: 2000` у `description`,
+  `maximum: 50` у `minUsers` и `maxUsers`.
+- Новые `Comment`, `CreateCommentRequest` (`text` до 1000 символов) и `CommentPage` с `limit` и `offset`.
+- `ApiError.code` получает `USER_NOT_FOUND`; `FORBIDDEN` также означает запрет комментировать не участнику.
+
+Ошибки возвращаются в формате `ApiError { code, message, details }` из контракта, а не problem details:
+400 VALIDATION_ERROR или CATEGORY_NOT_FOUND с полями в `details`, 401 UNAUTHORIZED с `WWW-Authenticate: Bearer`,
+403 FORBIDDEN, 404 EVENT_NOT_FOUND или USER_NOT_FOUND, 409 с кодом нарушенного правила, 500 INTERNAL_ERROR без
+внутренних деталей. Неизвестные поля запроса отклоняются с 400 VALIDATION_ERROR.
 
 Альтернатива: контроллеры вручную. Отвергнута: генератор уже настроен, а общий контракт — это именно то, что
 разблокирует фронтенд.
@@ -133,7 +149,8 @@ Mini App внутри Telegram по этому адресу. До появлен
 отдельно; положительное число не даёт права вступить после срока регистрации. При `now == registrationClosesAt`
 вступление и выход уже запрещены. Отменённые события не переходят в `finished` и сохраняют участников.
 
-Фоновая обработка закрывает набор и завершает встречи. Каждая операция над событием под блокировкой сначала
+Фоновая обработка закрывает набор и завершает встречи. Повторное вступление участника, выход не участника и повторная отмена отменённого организатором события
+идемпотентны: сервер отвечает успехом без изменений, как требует контракт. Каждая операция над событием под блокировкой сначала
 актуализирует его состояние по серверному времени, затем проверяет допустимость действия. При задержке обработки
 событие не остаётся открытым: чтение карточки и списка также возвращает актуальное состояние, а фильтры применяются
 к нему до выборки результатов. Если обработка впервые произошла после `endsAt`, сначала проверяется минимум
@@ -144,7 +161,7 @@ Mini App внутри Telegram по этому адресу. До появлен
 
 ### 6. Лимит при одновременных запросах: счётчик и блокировка строки
 
-`events.participant_count` — денормализованный счётчик. Присоединение и выход выполняются в одной транзакции. Сначала
+`events.participants_count` — денормализованный счётчик. Присоединение и выход выполняются в одной транзакции. Сначала
 она блокирует строку события (`SELECT ... FOR UPDATE` через метод репозитория с `@Lock(PESSIMISTIC_WRITE)`), затем
 считывает серверное время после получения блокировки, актуализирует состояние и проверяет
 `now < registrationClosesAt` и доменные правила по заблокированному счётчику. Только затем добавляет или удаляет
@@ -158,43 +175,55 @@ Mini App внутри Telegram по этому адресу. До появлен
 
 ### 7. Модель данных
 
+Миграция `V1__base_structure.sql` уже есть и могла быть применена локально, поэтому её не правят: изменения вносит
+новая миграция `V2`.
+
 ```
-users(id, telegram_id bigint unique, telegram_username null, photo_url null,
-      name, city null, created_at)
-interests(id, name)                         -- заполняется миграцией
-user_interests(user_id, interest_id)        -- первичный ключ по обоим полям
-events(id, title, description null, interest_id, city, address,
-       latitude null, longitude null, starts_at timestamptz, ends_at timestamptz,
-       registration_closes_at timestamptz, state,
-       min_participants, max_participants, participant_count,
-       organizer_id, created_at)
-participations(event_id, user_id, joined_at)  -- unique (event_id, user_id)
-comments(id, event_id, author_id, text, created_at)
+users(id uuid, tg_id bigint unique, tg_login null,
+      + name, + photo_url null, + city null, + created_at)
+categories(id uuid, name unique)                      -- заполняется миграцией
++ user_categories(user_id, category_id)               -- первичный ключ по обоим полям
+events(id uuid, title, description, location, icon null,
+       starts_at timestamptz, ends_at timestamptz, registration_closes_at timestamptz,
+       state, min_users, max_users, organizer_id,
+       + participants_count, + latitude null, + longitude null, + created_at)
+event_users(id, event_id, user_id, + joined_at)       -- unique (event_id, user_id)
+event_categories(id, event_id, category_id)           -- unique (event_id, category_id)
++ comments(id uuid, event_id, author_id, text, created_at)
 ```
 
-Ограничения CHECK повторяют спецификацию: `1 <= min <= max <= 50`, `participant_count <= max_participants`, обе
-координаты либо пустые, либо заданы; `registration_closes_at <= starts_at < ends_at`, даты обязательны,
-`state` ограничен пятью значениями из решения 5. Проверка `registrationClosesAt > now` выполняется сервисом
-при создании и переносе срока, а не динамическим CHECK. Индексы: `events(starts_at)`, `events(lower(city))`, `events(interest_id)`,
-`events(registration_closes_at) WHERE state = 'recruiting'`,
-`events(ends_at) WHERE state = 'registration_closed'`.
+Ограничения CHECK повторяют контракт: `1 <= min_users <= max_users <= 50`,
+`1 <= participants_count <= max_users`, обе координаты либо пустые, либо заданы и лежат в допустимых диапазонах,
+`registration_closes_at <= starts_at < ends_at`, `state` ограничен пятью значениями из решения 5, длина
+`title` до 100, `description` до 2000, `comments.text` от 1 до 1000 символов. Проверка `registrationClosesAt > now`
+выполняется сервисом при создании и изменении срока, а не динамическим CHECK. Индексы: `events(starts_at)`,
+`events(organizer_id)`, `event_users(user_id)`, `event_categories(category_id)`,
+`events(registration_closes_at) WHERE state = 'recruiting'`, `events(ends_at) WHERE state = 'registration_closed'`,
+`comments(event_id, created_at)`.
 
 ### 8. Запрос ленты
 
-Один запрос репозитория, который собирается через JPA `Specification` из необязательных фильтров. К нему всегда
-добавляются условия `starts_at > now` и исключение обоих состояний отмены с учётом актуализации
-из решения 5, затем сортировка по `starts_at`. Фильтр доступных для вступления мест дополнительно требует
-`state = 'recruiting'`, `registration_closes_at > now` и `participant_count < max_participants`. Пагинации нет: в демо меньше
-сотни событий.
+Один запрос репозитория, который собирается через JPA `Specification` из необязательных фильтров контракта:
+`query` (`lower(title) LIKE`), `categoryId` (через `event_categories`), `startsFrom` включительно, `startsTo`
+исключительно, `state`, `participating` (через `event_users` текущего пользователя) и `hasFreePlaces`
+(`state = 'recruiting'`, `registration_closes_at > now`, `participants_count < max_users`). Фильтр по состоянию
+применяется к актуальному состоянию: перед выборкой сервис актуализирует события с наступившими сроками по
+решению 5. Порядок `starts_at, id`, пагинация `limit` и `offset`, `total` считается отдельным запросом с теми же
+условиями. По умолчанию состояние не фильтруется: прошедшие и отменённые события тоже возвращаются, а экран ленты
+сам передаёт `startsFrom=now`.
+
+«Мои события» — тот же запрос с `participating=true`: клиент делает два запроса, `startsFrom=now` и `startsTo=now`,
+и показывает прошедшие события в обратном порядке. Отдельного эндпоинта нет.
 
 ### 9. Стек фронтенда
 
 Vue 3 с TypeScript на Vite, архитектура FEOD, TanStack Query для серверного состояния и Pinia для клиентского состояния.
 Типы генерируются через `openapi-typescript`, обработчики MSW работают по контракту на первые дни. Карта использует
-Leaflet и тайлы OpenStreetMap. Пользователь может ввести адрес вручную и выбрать точку кликом на карте; точку можно
+Leaflet и тайлы OpenStreetMap. Пользователь может ввести место вручную и выбрать точку кликом на карте; точку можно
 изменить или очистить. Для прямого и обратного геокодирования выбран Geoapify через бэкенд; API-ключ хранится только
-на сервере. Контракт запросов, обработку отсутствия результата и обязательность точки нужно согласовать с бэкендом до
-интеграции. До её готовности ручной адрес и точка не синхронизируются автоматически. Для публичных тайлов нужно
+на сервере. Точка на карте необязательна: `latitude` и `longitude` передаются вместе или не передаются. Контракт геокодирования
+и обработку отсутствия результата нужно согласовать с бэкендом до интеграции. До её готовности ручное место и точка
+не синхронизируются автоматически. Для публичных тайлов нужно
 соблюдать правила использования и указывать авторство OpenStreetMap; доступность сервиса не гарантируется.
 
 Альтернатива: Яндекс Карты. Рабочий вариант, но нужен ключ и SDK тяжелее. Переходить на него стоит, только если команда
@@ -203,14 +232,14 @@ Leaflet и тайлы OpenStreetMap. Пользователь может вве�
 ### 10. Тесты
 
 Доменные правила — обычные тесты JUnit 5. Репозитории и правило об одновременных запросах — `@DataJpaTest` на PostgreSQL
-в Testcontainers с переиспользованием контейнера между тестами, потому что блокировка строки и `lower(city)` на H2 ведут
-себя иначе. Веб-слой — срезы `@WebMvcTest` для кодов ответа и problem details. Сценарий гонки запускает два
+в Testcontainers с переиспользованием контейнера между тестами, потому что блокировка строки и `uuidv7()` на H2 ведут
+себя иначе. Веб-слой — срезы `@WebMvcTest` для кодов ответа и формата `ApiError`. Сценарий гонки запускает два
 присоединения в параллельных потоках с ограничением по времени.
 
 ### 11. Демо-данные
 
-Отдельная локация Flyway `db/demo`, включённая только в профиле `demo`, добавляет около сорока событий в нескольких
-городах, с разными интересами и датами, а также несколько демо-пользователей с выдуманными идентификаторами Telegram.
+Отдельная локация Flyway `db/demo`, включённая только в профиле `demo`, добавляет около сорока событий в разных местах,
+с разными категориями и датами, а также несколько демо-пользователей с выдуманными идентификаторами Telegram.
 В тестах и при обычном запуске она не выполняется. Для событий задаются согласованные `registration_closes_at`,
 `starts_at`, `ends_at` и `state`. Записи вымышленных пользователей нужны для наполнения событий, но не дают
 возможности войти от их имени: сквозной вход показывается на настоящих аккаунтах Telegram.
@@ -301,4 +330,4 @@ Mini App и кнопку открытия у бота в BotFather. Дальше
 
 - Какой облачный провайдер и какой домен. Подход из решения 12 подходит любому провайдеру с VPS на Ubuntu, поэтому выбор
   меняет только первичную настройку сервера.
-- Точный список интересов в справочнике. Это данные миграции, их можно поменять в любой момент.
+- Точный список категорий в справочнике. Это данные миграции, их можно поменять в любой момент.
