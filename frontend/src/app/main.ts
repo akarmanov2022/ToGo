@@ -3,6 +3,8 @@ import { createPinia } from 'pinia'
 import { VueQueryPlugin } from '@tanstack/vue-query'
 import App from './App.vue'
 import { router } from './router'
-import './styles.css'
+import './styles/tokens.css'
+import './styles/base.css'
+import './styles/login.css'
 
 createApp(App).use(createPinia()).use(VueQueryPlugin).use(router).mount('#app')

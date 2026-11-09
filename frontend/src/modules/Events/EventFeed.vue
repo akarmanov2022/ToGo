@@ -1,39 +1,75 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import AppButton from '@/common/ui/AppButton.vue'
+import AppChip from '@/common/ui/AppChip.vue'
+import ChipGroup from '@/common/ui/ChipGroup.vue'
 import { categories, events } from './data'
+import EventCard from './EventCard.vue'
+
 const category = ref('Все')
 const visible = computed(() =>
   category.value === 'Все' ? events : events.filter((event) => event.category === category.value),
 )
 </script>
 <template>
-  <section class="feed">
-    <div class="section-heading">
+  <section>
+    <div class="heading">
       <div>
         <h1>Куда отправляемся?</h1>
         <p class="demo-label">Демонстрационные события</p>
       </div>
-      <div class="categories" aria-label="Категории">
-        <button
+      <ChipGroup scrollable class="categories" aria-label="Категории">
+        <AppChip
           v-for="item in ['Все', ...categories]"
           :key="item"
-          :class="['chip', { active: category === item }]"
+          :active="category === item"
           @click="category = item"
         >
           {{ item }}
-        </button>
-      </div>
+        </AppChip>
+      </ChipGroup>
     </div>
-    <div class="event-grid">
-      <article v-for="(event, i) in visible" :key="event.title" class="event-card">
-        <div :class="['event-icon', { pink: i % 2 }]" />
-        <div class="event-info">
-          <h2>{{ event.title }}</h2>
-          <p>{{ event.category }} · {{ event.time }}</p>
-          <p>{{ event.place }} · ещё {{ event.places }} места</p>
-        </div>
-        <button class="button join-button" disabled>Присоединиться</button>
-      </article>
+    <div class="grid">
+      <EventCard
+        v-for="(event, i) in visible"
+        :key="event.title"
+        :title="event.title"
+        :meta="`${event.category} · ${event.time}`"
+        :place="`${event.place} · ещё ${event.places} места`"
+        :pink="i % 2 === 1"
+      >
+        <AppButton block disabled>Присоединиться</AppButton>
+      </EventCard>
     </div>
   </section>
 </template>
+<style scoped>
+.heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+@media (max-width: 700px) {
+  .heading {
+    display: block;
+    margin-bottom: 18px;
+  }
+  h1 {
+    font-size: 25px;
+  }
+  .categories {
+    margin-top: 16px;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+</style>
