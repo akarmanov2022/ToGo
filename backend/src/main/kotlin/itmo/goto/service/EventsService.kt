@@ -26,6 +26,7 @@ class EventsService : EventsApiService {
         startsTo: OffsetDateTime?,
         state: EventState?,
         participating: Boolean,
+        hasFreePlaces: Boolean,
         limit: Int,
         offset: Int,
     ): EventPage =
