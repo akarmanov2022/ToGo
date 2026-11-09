@@ -12,7 +12,7 @@ const interests = ['Кафе', 'Выставки', 'Спорт', 'Кино', 'Н
 </script>
 <template>
   <section class="layout">
-    <AppCard as="aside" class="card">
+    <AppCard as="aside" class="summary">
       <div class="avatar">С</div>
       <h2>София</h2>
       <p>Люблю кофе, выставки и прогулки</p>
@@ -54,7 +54,7 @@ const interests = ['Кафе', 'Выставки', 'Спорт', 'Кино', 'Н
   grid-template-columns: 300px 1fr;
   gap: 40px;
 }
-.card {
+.summary {
   --card-radius: 16px;
   --card-padding: 24px;
   display: flex;
@@ -63,10 +63,10 @@ const interests = ['Кафе', 'Выставки', 'Спорт', 'Кино', 'Н
   gap: 12px;
   text-align: center;
 }
-.card h2 {
+.summary h2 {
   font-size: 22px;
 }
-.card p {
+.summary p {
   font-size: 12px;
 }
 .avatar {
@@ -146,7 +146,7 @@ h1 {
     flex-direction: column;
     gap: 24px;
   }
-  .card {
+  .summary {
     gap: 10px;
   }
   .avatar {

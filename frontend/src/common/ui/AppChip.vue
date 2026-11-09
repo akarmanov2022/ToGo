@@ -1,8 +1,8 @@
 <script setup lang="ts">
-withDefaults(
-  defineProps<{ as?: 'button' | 'span'; active?: boolean; tone?: 'navy' | 'pink' }>(),
-  { as: 'button', tone: 'navy' },
-)
+withDefaults(defineProps<{ as?: 'button' | 'span'; active?: boolean; tone?: 'navy' | 'pink' }>(), {
+  as: 'button',
+  tone: 'navy',
+})
 </script>
 <template>
   <component

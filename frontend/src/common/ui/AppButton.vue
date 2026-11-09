@@ -1,8 +1,8 @@
 <script setup lang="ts">
-withDefaults(
-  defineProps<{ to?: string; variant?: 'primary' | 'secondary'; block?: boolean }>(),
-  { variant: 'primary' },
-)
+withDefaults(defineProps<{ to?: string; variant?: 'primary' | 'secondary'; block?: boolean }>(), {
+  to: undefined,
+  variant: 'primary',
+})
 </script>
 <template>
   <RouterLink v-if="to" :to="to" :class="['button', variant, { block }]"><slot /></RouterLink>

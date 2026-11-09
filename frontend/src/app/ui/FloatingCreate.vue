@@ -1,5 +1,7 @@
 <template>
-  <RouterLink class="floating" to="/create" aria-label="Создать событие">＋ <span>Создать</span></RouterLink>
+  <RouterLink class="floating" to="/create" aria-label="Создать событие"
+    >＋ <span>Создать</span></RouterLink
+  >
 </template>
 <style scoped>
 .floating {
