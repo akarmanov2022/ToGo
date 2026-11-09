@@ -1,0 +1,64 @@
+
+openapi: 3.0.3
+
+info:
+  title: ToGo API
+  version: 1.0.0
+
+paths:
+  /api/v1/events:
+    get:
+      tags: [Events]
+      operationId: getEvents
+      summary: Получить список встреч
+      responses:
+        '200':
+          description: Список встреч
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Event'
+
+    post:
+      tags: [Events]
+      operationId: createEvent
+      summary: Создать встречу
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventRequest'
+      responses:
+        '201':
+          description: Встреча создана
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+
+components:
+  schemas:
+    Event:
+      type: object
+      required: [id, title]
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        description:
+          type: string
+
+    CreateEventRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+
