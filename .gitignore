@@ -3,3 +3,8 @@
 # =========================
 .DS_Store
 .AppleDouble
+
+# Frontend dependencies and build artifacts
+node_modules/
+frontend/dist/
+*.tsbuildinfo
