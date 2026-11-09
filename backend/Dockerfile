@@ -1,17 +1,18 @@
-# ===== Build stage =====
 FROM eclipse-temurin:21-jdk AS build
 
 WORKDIR /app
 
-COPY mvnw .
-COPY .mvn .mvn
-COPY pom.xml .
+COPY backend/mvnw .
+COPY backend/.mvn .mvn
+COPY backend/pom.xml .
+COPY backend/src ./src
+
+COPY api ./api
 
 RUN chmod +x mvnw
 
 RUN ./mvnw dependency:go-offline -B
 
-COPY src ./src
 RUN ./mvnw -B clean package -DskipTests
 
 FROM eclipse-temurin:21-jre

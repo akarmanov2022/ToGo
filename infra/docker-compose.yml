@@ -18,8 +18,8 @@ services:
 
   backend:
     build:
-      context: ../backend
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: backend/Dockerfile
     image: togo-backend:local
     container_name: togo-backend
     environment:
