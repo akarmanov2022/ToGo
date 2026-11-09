@@ -1,25 +1,21 @@
 FROM eclipse-temurin:21-jdk AS build
 
-WORKDIR /app
+WORKDIR /build
 
-COPY backend/mvnw .
-COPY backend/.mvn .mvn
-COPY backend/pom.xml .
-COPY backend/src ./src
+COPY backend /build/backend
+COPY api /build/api
 
-COPY api ./api
+WORKDIR /build/backend
 
 RUN chmod +x mvnw
-
 RUN ./mvnw dependency:go-offline -B
-
 RUN ./mvnw -B clean package -DskipTests
 
 FROM eclipse-temurin:21-jre
 
 WORKDIR /app
 
-COPY --from=build /app/target/*.jar app.jar
+COPY --from=build /build/backend/target/*.jar app.jar
 
 EXPOSE 8080
 
