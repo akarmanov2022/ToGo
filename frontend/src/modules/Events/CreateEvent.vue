@@ -4,6 +4,7 @@ import AppButton from '@/common/ui/AppButton.vue'
 import AppChip from '@/common/ui/AppChip.vue'
 import AppField from '@/common/ui/AppField.vue'
 import ChipGroup from '@/common/ui/ChipGroup.vue'
+import { LocationPicker, type Coordinates } from '@/modules/Map'
 import { categories } from './data'
 import EventCard from './EventCard.vue'
 
@@ -12,6 +13,7 @@ const category = ref('Кафе')
 const place = ref('')
 const min = ref(1)
 const max = ref(4)
+const coordinates = ref<Coordinates | null>(null)
 </script>
 <template>
   <section>
@@ -38,7 +40,8 @@ const max = ref(4)
           <AppField label="Дата" type="date" />
           <AppField label="Время" type="time" />
         </div>
-        <AppField v-model="place" label="Место" placeholder="Центр" />
+        <AppField v-model="place" label="Место" placeholder="Например, Невский проспект, 28" />
+        <LocationPicker v-model="coordinates" :address="place" />
         <div class="row">
           <AppField v-model="min" label="Минимум участников" type="number" min="1" max="50" />
           <AppField v-model="max" label="Максимум участников" type="number" min="1" max="50" />
