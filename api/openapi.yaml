@@ -1,64 +1,828 @@
-
 openapi: 3.0.3
 
 info:
-  title: ToGo API
+  title: ToGo Mini App API
   version: 1.0.0
+  description: |
+    Контракт Telegram Mini App для совместных событий.
+    JSON использует camelCase, идентификаторы — UUID, даты — RFC 3339
+    с обязательным часовым поясом. Сервер возвращает даты в UTC.
+    Все операции, кроме входа через Telegram, требуют Bearer-токен.
+    Неизвестные поля запросов отклоняются с 400 VALIDATION_ERROR.
+
+    Организатор определяется из авторизации, автоматически становится участником
+    и учитывается в minUsers, maxUsers и participantsCount. Создавать участие
+    другого пользователя по его логину нельзя.
+
+    Организатор задаёт registrationClosesAt: now < registrationClosesAt <= startsAt < endsAt.
+    До этого срока набор открыт, даже если свободных мест временно нет.
+    При now >= registrationClosesAt сервер атомарно фиксирует состав:
+    если participantsCount < minUsers — cancelled_by_system, иначе registration_closed.
+    Вступление и выход после срока запрещены независимо от задержки фонового задания.
+    При now >= endsAt событие registration_closed переходит в finished;
+    отменённые события сохраняют статус и состав участников.
+    Изменения события, вступление, выход и закрытие набора сериализуются
+    блокировкой события в транзакции, чтобы исключить переполнение и гонки.
+
+tags:
+  - name: Auth
+    description: Вход через Telegram Mini App
+  - name: Users
+    description: Текущий пользователь
+  - name: Categories
+    description: Справочник категорий, управляемый бэкендом
+  - name: Events
+    description: События и участие
+
+security:
+  - bearerAuth: []
 
 paths:
-  /api/v1/events:
-    get:
-      tags: [Events]
-      operationId: getEvents
-      summary: Получить список встреч
+  /api/v1/auth/telegram:
+    post:
+      tags: [Auth]
+      operationId: authenticateTelegram
+      summary: Войти или зарегистрироваться через Telegram
+      description: |
+        Клиент передаёт исходную строку Telegram.WebApp.initData.
+        Сервер проверяет её подпись по алгоритму Telegram и auth_date:
+        данные не старше 5 минут, допустимое отклонение в будущее — 30 секунд.
+        Объект user обязателен. initDataUnsafe не является основанием для входа.
+        Пользователь создаётся или находится по проверенному Telegram user.id;
+        tgLogin обновляется из user.username, а при его отсутствии становится null.
+        Telegram ID и логин из отдельных полей тела не принимаются.
+        Возвращается токен приложения сроком на 1 час. После истечения клиент
+        повторяет вход со свежим initData (при необходимости переоткрывает Mini App).
+        Токены и initData не должны попадать в логи.
+      externalDocs:
+        description: Проверка initData на сервере
+        url: https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelegramAuthRequest'
       responses:
         '200':
-          description: Список встреч
+          description: Вход выполнен; одинаковый ответ для нового и существующего пользователя
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                enum: [no-store]
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Неверные, просроченные initData или отсутствие проверенного user (INVALID_TELEGRAM_INIT_DATA)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          $ref: '#/components/responses/UnexpectedError'
+
+  /api/v1/users/me:
+    get:
+      tags: [Users]
+      operationId: getCurrentUser
+      summary: Получить свой профиль
+      responses:
+        '200':
+          description: Текущий пользователь
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/UnexpectedError'
+
+  /api/v1/categories:
+    get:
+      tags: [Categories]
+      operationId: getCategories
+      summary: Получить доступные категории
+      description: |
+        Полный справочник, отсортированный по name и id.
+        Клиент выбирает categoryIds из этого списка; создавать категории нельзя.
+      responses:
+        '200':
+          description: Категории
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Event'
+                  $ref: '#/components/schemas/Category'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/UnexpectedError'
 
+  /api/v1/events:
+    get:
+      tags: [Events]
+      operationId: getEvents
+      summary: Найти события
+      description: |
+        Фильтры объединяются через AND. По умолчанию возвращаются события всех
+        состояний, включая прошедшие и отменённые. Порядок — startsAt ASC, id ASC.
+        startsFrom включается, startsTo не включается; при обеих границах
+        startsFrom должен быть меньше startsTo. Пустая выдача — 200 с items: [].
+      parameters:
+        - name: query
+          in: query
+          description: Подстрока названия без учёта регистра; крайние пробелы удаляются, пустая строка не фильтрует
+          schema:
+            type: string
+        - name: categoryId
+          in: query
+          description: События с указанной категорией; неизвестный UUID даёт пустую выдачу
+          schema:
+            type: string
+            format: uuid
+        - name: startsFrom
+          in: query
+          description: Нижняя включительная граница времени начала
+          schema:
+            type: string
+            format: date-time
+        - name: startsTo
+          in: query
+          description: Верхняя исключительная граница времени начала
+          schema:
+            type: string
+            format: date-time
+        - name: state
+          in: query
+          schema:
+            $ref: '#/components/schemas/EventState'
+        - name: participating
+          in: query
+          description: При true — только события с моим участием (включая организованные мной); false не фильтрует
+          schema:
+            type: boolean
+            default: false
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Страница событий
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/UnexpectedError'
     post:
       tags: [Events]
       operationId: createEvent
-      summary: Создать встречу
+      summary: Создать событие
+      description: |
+        Сервер назначает UUID, организатора и состояние recruiting.
+        Событие, участие организатора и связи категорий создаются в одной транзакции.
+        Требуется now < registrationClosesAt <= startsAt < endsAt и 1 <= minUsers <= maxUsers.
+        Все categoryIds должны существовать в справочнике, иначе 400 CATEGORY_NOT_FOUND.
+        Операция не идемпотентна: повторный POST создаёт новое событие.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateEventRequest'
+            example:
+              title: Вечер настолок
+              description: Играем в настольные игры
+              location: Кафе на Центральной улице, 10
+              startsAt: '2026-12-20T18:00:00+03:00'
+              endsAt: '2026-12-20T21:00:00+03:00'
+              registrationClosesAt: '2026-12-20T15:00:00+03:00'
+              minUsers: 3
+              maxUsers: 6
+              icon: '🎲'
+              categoryIds: [019a0000-0000-7000-8000-000000000001]
       responses:
         '201':
-          description: Встреча создана
+          description: Событие создано, организатор включён в участников
+          headers:
+            Location:
+              description: Относительный адрес созданного события
+              schema:
+                type: string
+                example: /api/v1/events/019a0000-0000-7000-8000-000000000002
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Event'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/UnexpectedError'
+
+  /api/v1/events/{eventId}:
+    parameters:
+      - $ref: '#/components/parameters/EventId'
+    get:
+      tags: [Events]
+      operationId: getEvent
+      summary: Получить событие
+      description: Состав участников доступен отдельно через GET /api/v1/events/{eventId}/participants.
+      responses:
+        '200':
+          $ref: '#/components/responses/EventResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/UnexpectedError'
+    patch:
+      tags: [Events]
+      operationId: updateEvent
+      summary: Изменить событие организатором
+      description: |
+        Только организатор, только в recruiting и до текущего registrationClosesAt.
+        Переданные поля заменяются, отсутствующие сохраняются. Пустой объект и null
+        недопустимы. categoryIds полностью заменяет категории. Пустая строка icon
+        удаляет иконку (в ответе icon: null). Для description пустая строка очищает описание.
+        startsAt, endsAt, location, organizer и state менять нельзя.
+        registrationClosesAt можно перенести, пока текущий срок ещё не истёк;
+        новый срок должен удовлетворять now < registrationClosesAt <= startsAt.
+        Ограничения minUsers/maxUsers проверяются для результата изменения;
+        maxUsers нельзя уменьшить ниже participantsCount (409 CAPACITY_BELOW_PARTICIPANTS).
+        Закрытый набор — 409 REGISTRATION_CLOSED, отменённое/прошедшее событие —
+        409 INVALID_EVENT_STATE. Неизвестная категория — 400 CATEGORY_NOT_FOUND.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEventRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/UnexpectedError'
+
+  /api/v1/events/{eventId}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/EventId'
+    post:
+      tags: [Events]
+      operationId: cancelEvent
+      summary: Отменить событие организатором
+      description: |
+        Только организатор. До startsAt можно отменить recruiting или registration_closed.
+        Состояние меняется на cancelled_by_organizer, событие и участники сохраняются.
+        Повторная отмена уже cancelled_by_organizer возвращает 200 без изменений,
+        в том числе после startsAt. Остальные состояния или начавшееся событие —
+        409 INVALID_EVENT_STATE. Тело запроса не требуется.
+      responses:
+        '200':
+          $ref: '#/components/responses/EventResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/UnexpectedError'
+
+  /api/v1/events/{eventId}/participants:
+    parameters:
+      - $ref: '#/components/parameters/EventId'
+    get:
+      tags: [Events]
+      operationId: getEventParticipants
+      summary: Получить участников события
+      description: Доступно авторизованным пользователям. Организатор включён; сортировка по id ASC.
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Страница участников
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipantPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/UnexpectedError'
+
+  /api/v1/events/{eventId}/participants/me:
+    parameters:
+      - $ref: '#/components/parameters/EventId'
+    put:
+      tags: [Events]
+      operationId: joinEvent
+      summary: Присоединиться к событию
+      description: |
+        Участник определяется по авторизации, тело запроса не требуется.
+        Если пользователь уже участник, возвращается 200 без изменений независимо
+        от состояния и заполненности события. Иначе нужны recruiting,
+        now < registrationClosesAt и participantsCount < maxUsers.
+        Сначала проверяется состояние, затем вместимость. Закрытый набор —
+        409 REGISTRATION_CLOSED; отменённое/прошедшее событие — 409 INVALID_EVENT_STATE;
+        отсутствие мест — 409 EVENT_FULL. Проверка и добавление атомарны.
+      responses:
+        '200':
+          $ref: '#/components/responses/EventResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/UnexpectedError'
+    delete:
+      tags: [Events]
+      operationId: leaveEvent
+      summary: Выйти из события
+      description: |
+        Если пользователь не участник, возвращается 204 независимо от состояния.
+        Организатору выход запрещён (409 ORGANIZER_CANNOT_LEAVE), он может отменить событие.
+        Остальным участникам выход разрешён только в recruiting до registrationClosesAt.
+        Закрытый набор — 409 REGISTRATION_CLOSED, отменённое/прошедшее событие —
+        409 INVALID_EVENT_STATE. Снижение количества ниже minUsers до срока
+        регистрации не отменяет событие. Проверка и удаление атомарны.
+      responses:
+        '204':
+          description: Пользователь не участвует в событии; тело отсутствует
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/UnexpectedError'
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Токен приложения из POST /api/v1/auth/telegram; заголовок Authorization со значением Bearer <accessToken>
+
+  parameters:
+    EventId:
+      name: eventId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Limit:
+      name: limit
+      in: query
+      description: Размер страницы
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 100
+        default: 20
+    Offset:
+      name: offset
+      in: query
+      description: Число пропускаемых записей
+      schema:
+        type: integer
+        format: int32
+        minimum: 0
+        default: 0
+
+  responses:
+    EventResponse:
+      description: Актуальное событие с признаками участия текущего пользователя
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Event'
+    BadRequest:
+      description: Некорректный JSON, UUID, дата, параметры или бизнес-валидация (VALIDATION_ERROR, CATEGORY_NOT_FOUND)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            code: VALIDATION_ERROR
+            message: Срок регистрации не может быть позже начала события
+            details:
+              - field: registrationClosesAt
+                message: Должно быть не позже startsAt
+    Unauthorized:
+      description: Токен отсутствует, недействителен или истёк (UNAUTHORIZED)
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+            example: Bearer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Forbidden:
+      description: Пользователь не организатор события (FORBIDDEN)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    NotFound:
+      description: Событие не найдено (EVENT_NOT_FOUND)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Conflict:
+      description: |
+        Конфликт с текущим состоянием события. Код зависит от операции:
+        REGISTRATION_CLOSED, INVALID_EVENT_STATE, EVENT_FULL,
+        CAPACITY_BELOW_PARTICIPANTS или ORGANIZER_CANNOT_LEAVE.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+          example:
+            code: EVENT_FULL
+            message: Все места заняты
+            details: []
+    UnexpectedError:
+      description: Непредвиденная ошибка сервера (INTERNAL_ERROR); внутренние детали не раскрываются
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+
   schemas:
-    Event:
+    TelegramAuthRequest:
       type: object
-      required: [id, title]
+      additionalProperties: false
+      required: [initData]
+      properties:
+        initData:
+          type: string
+          minLength: 1
+          writeOnly: true
+          description: Неизменённая строка Telegram.WebApp.initData
+
+    AuthResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn, user]
+      properties:
+        accessToken:
+          type: string
+          minLength: 1
+        tokenType:
+          type: string
+          enum: [Bearer]
+        expiresIn:
+          type: integer
+          format: int32
+          enum: [3600]
+          description: Срок жизни токена в секундах с момента выдачи
+        user:
+          $ref: '#/components/schemas/CurrentUser'
+
+    CurrentUser:
+      type: object
+      required: [id, tgId, tgLogin]
       properties:
         id:
+          type: string
+          format: uuid
+        tgId:
           type: integer
           format: int64
+          description: Telegram user.id из проверенных initData
+        tgLogin:
+          type: string
+          nullable: true
+          description: Telegram username без @; null, если username отсутствует
+
+    UserSummary:
+      type: object
+      required: [id, tgLogin]
+      properties:
+        id:
+          type: string
+          format: uuid
+        tgLogin:
+          type: string
+          nullable: true
+          description: Telegram username без @; может отсутствовать и изменяться
+
+    Category:
+      type: object
+      required: [id, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          example: Настолки
+
+    EventState:
+      type: string
+      description: |
+        recruiting — набор открыт до registrationClosesAt;
+        cancelled_by_organizer — отменено организатором;
+        cancelled_by_system — к сроку регистрации не набран минимум;
+        registration_closed — состав зафиксирован, событие ожидается или идёт;
+        finished — событие завершилось. Заполнение всех мест само по себе
+        не меняет recruiting, освободившееся место можно занять до срока регистрации.
+      enum:
+        - recruiting
+        - cancelled_by_organizer
+        - cancelled_by_system
+        - registration_closed
+        - finished
+
+    Event:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - location
+        - startsAt
+        - endsAt
+        - registrationClosesAt
+        - state
+        - icon
+        - minUsers
+        - maxUsers
+        - organizer
+        - categories
+        - participantsCount
+        - availableSlots
+        - isParticipant
+        - isOrganizer
+      properties:
+        id:
+          type: string
+          format: uuid
         title:
           type: string
+          minLength: 1
         description:
           type: string
+        location:
+          type: string
+          minLength: 1
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        registrationClosesAt:
+          type: string
+          format: date-time
+          description: Заданный организатором срок закрытия регистрации и проверки минимума участников
+        state:
+          $ref: '#/components/schemas/EventState'
+        icon:
+          type: string
+          nullable: true
+          description: Текстовая иконка (например, emoji); null, если не задана
+        minUsers:
+          type: integer
+          format: int32
+          minimum: 1
+        maxUsers:
+          type: integer
+          format: int32
+          minimum: 1
+        organizer:
+          $ref: '#/components/schemas/UserSummary'
+        categories:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/Category'
+        participantsCount:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Количество участников, включая организатора
+        availableSlots:
+          type: integer
+          format: int32
+          minimum: 0
+          description: maxUsers минус participantsCount; положительное значение не означает, что набор открыт
+        isParticipant:
+          type: boolean
+          description: Текущий пользователь входит в состав участников
+        isOrganizer:
+          type: boolean
+          description: Текущий пользователь — организатор
 
     CreateEventRequest:
       type: object
-      required: [title]
+      additionalProperties: false
+      required: [title, location, startsAt, endsAt, registrationClosesAt, minUsers, maxUsers, categoryIds]
       properties:
         title:
           type: string
+          minLength: 1
+          pattern: '[\s\S]*\S[\s\S]*'
+          description: Название, содержащее хотя бы один непробельный символ
         description:
           type: string
+          default: ''
+        location:
+          type: string
+          minLength: 1
+          pattern: '[\s\S]*\S[\s\S]*'
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        registrationClosesAt:
+          type: string
+          format: date-time
+          description: now < registrationClosesAt <= startsAt; задаётся организатором
+        icon:
+          type: string
+          description: Текстовая иконка; отсутствие или пустая строка означает отсутствие иконки
+        minUsers:
+          type: integer
+          format: int32
+          minimum: 1
+        maxUsers:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Не меньше minUsers; организатор занимает одно место
+        categoryIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
 
+    UpdateEventRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: Частичное изменение. Отсутствующие поля сохраняются, null запрещён.
+      properties:
+        title:
+          type: string
+          minLength: 1
+          pattern: '[\s\S]*\S[\s\S]*'
+        description:
+          type: string
+        registrationClosesAt:
+          type: string
+          format: date-time
+        icon:
+          type: string
+          description: Пустая строка удаляет иконку
+        minUsers:
+          type: integer
+          format: int32
+          minimum: 1
+        maxUsers:
+          type: integer
+          format: int32
+          minimum: 1
+        categoryIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            format: uuid
+
+    EventPage:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Event'
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Общее число событий после фильтрации, до пагинации
+        limit:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+        offset:
+          type: integer
+          format: int32
+          minimum: 0
+
+    ParticipantPage:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserSummary'
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Общее число участников, включая организатора
+        limit:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 100
+        offset:
+          type: integer
+          format: int32
+          minimum: 0
+
+    ApiError:
+      type: object
+      required: [code, message, details]
+      properties:
+        code:
+          type: string
+          description: Стабильный машинный код для обработки на клиенте
+          enum:
+            - VALIDATION_ERROR
+            - INVALID_TELEGRAM_INIT_DATA
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - EVENT_NOT_FOUND
+            - CATEGORY_NOT_FOUND
+            - REGISTRATION_CLOSED
+            - INVALID_EVENT_STATE
+            - EVENT_FULL
+            - CAPACITY_BELOW_PARTICIPANTS
+            - ORGANIZER_CANNOT_LEAVE
+            - INTERNAL_ERROR
+        message:
+          type: string
+          description: Сообщение для пользователя; не использовать для определения типа ошибки
+        details:
+          type: array
+          description: Ошибки отдельных полей; пустой массив для ошибок без привязки к полю
+          items:
+            $ref: '#/components/schemas/FieldError'
+
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field:
+          type: string
+          description: Имя поля JSON или параметра запроса, например categoryIds[0]
+        message:
+          type: string
