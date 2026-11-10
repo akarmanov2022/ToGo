@@ -15,6 +15,7 @@ import itmo.goto.web.ApiFailure
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
+import java.time.Instant
 import java.util.UUID
 import itmo.goto.generated.model.Event as Card
 
@@ -24,6 +25,7 @@ class EventDelegateService(
     private val participations: ParticipationRepository,
     private val identity: Identity,
     private val clock: Clock,
+    private val notifications: NotificationQueue,
 ) {
     @Transactional(noRollbackFor = [ApiFailure::class])
     fun change(id: UUID, request: UpdateEventRequest): Card = request.run {
@@ -40,7 +42,7 @@ class EventDelegateService(
             throw ApiFailure(violations)
         }
         val deadline = registrationClosesAt?.toInstant() ?: event.registrationClosesAt
-        decide(event, { meeting, role -> meeting.change(role, limits, deadline, now) }) {
+        decide(event, now, { meeting, role -> meeting.change(role, limits, deadline, now) }) {
             event.registrationClosesAt = deadline
             event.minUsers = minUsers ?: event.minUsers
             event.maxUsers = maxUsers ?: event.maxUsers
@@ -54,23 +56,23 @@ class EventDelegateService(
     @Transactional(noRollbackFor = [ApiFailure::class])
     fun cancel(id: UUID): Card = locked(id).let { event ->
         val now = clock.instant()
-        decide(event, { meeting, role -> meeting.cancel(role, now) }) {}
+        decide(event, now, { meeting, role -> meeting.cancel(role, now) }) {}
     }
 
     private fun locked(id: UUID): Event =
         events.locked(id) ?: throw ApiFailure(ApiError.Code.EVENT_NOT_FOUND, "Событие не найдено")
 
-    private fun decide(event: Event, rule: (Meeting, Role) -> Decision, change: () -> Unit): Card {
+    private fun decide(event: Event, now: Instant, rule: (Meeting, Role) -> Decision, change: () -> Unit): Card {
         val user = identity.user()
         val participant = participations.existsByEventIdAndUserId(checkNotNull(event.id), user)
         return rule(event.meeting(), event.role(user, participant)).fold(
             {
-                event.settle(it)
+                notifications.settle(event, it, now)
                 change()
                 event.card(user, participant)
             },
             { meeting, refusal ->
-                event.settle(meeting)
+                notifications.settle(event, meeting, now)
                 throw ApiFailure(refusal)
             },
         )

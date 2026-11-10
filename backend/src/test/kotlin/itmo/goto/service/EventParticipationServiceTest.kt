@@ -23,7 +23,7 @@ import java.util.UUID
 import kotlin.random.Random
 
 @DataJpaTest(showSql = false)
-@Import(PostgresConfiguration::class, EventParticipationService::class)
+@Import(PostgresConfiguration::class, EventParticipationService::class, NotificationQueue::class)
 class EventParticipationServiceTest(
     @Autowired private val participation: EventParticipationService,
     @Autowired private val jdbc: JdbcTemplate,
@@ -34,6 +34,30 @@ class EventParticipationServiceTest(
 
     @TestBean
     private lateinit var clock: Clock
+
+    @Test
+    fun `joining schedules one message and future reminders`() {
+        holder()
+        val event = event("recruiting", now.plus(Duration.ofHours(3)), now.plus(Duration.ofDays(2)))
+        participation.join(event)
+        participation.join(event)
+        entities.flush()
+        assertThat(jdbc.queryForList<String>("SELECT kind FROM notifications WHERE event_id = ? AND user_id = ?", event, holder))
+            .withFailMessage("Repeated joining duplicated a notification")
+            .containsExactlyInAnyOrder("joined", "reminder_day", "reminder_hour")
+    }
+
+    @Test
+    fun `leaving removes pending reminders`() {
+        holder()
+        val event = event("recruiting", now.plus(Duration.ofHours(3)), now.plus(Duration.ofDays(2)))
+        participation.join(event)
+        participation.leave(event)
+        entities.flush()
+        assertThat(jdbc.queryForList<String>("SELECT kind FROM notifications WHERE event_id = ? AND user_id = ?", event, holder))
+            .withFailMessage("Leaving kept pending reminders")
+            .containsExactly("joined")
+    }
 
     @Test
     fun `outsider joins a recruiting event`() {

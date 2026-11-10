@@ -14,6 +14,7 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager
 import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.core.queryForList
 import org.springframework.test.context.bean.override.convention.TestBean
 import java.time.Clock
 import java.time.Duration
@@ -25,7 +26,7 @@ import java.util.UUID
 import kotlin.random.Random
 
 @DataJpaTest(showSql = false)
-@Import(PostgresConfiguration::class, EventDelegateService::class)
+@Import(PostgresConfiguration::class, EventDelegateService::class, NotificationQueue::class)
 class EventDelegateServiceTest(
     @Autowired private val delegateService: EventDelegateService,
     @Autowired private val jdbc: JdbcTemplate,
@@ -36,6 +37,20 @@ class EventDelegateServiceTest(
 
     @TestBean
     private lateinit var clock: Clock
+
+    @Test
+    fun `organizer cancellation notifies guests only once`() {
+        holder()
+        val event = event(holder, "recruiting", now.plus(minutes(1, 600)))
+        val guest = Rows(jdbc).user()
+        Rows(jdbc).participant(event, guest)
+        delegateService.cancel(event)
+        Failure { delegateService.cancel(event) }.code()
+        entities.flush()
+        assertThat(jdbc.queryForList<UUID>("SELECT user_id FROM notifications WHERE event_id = ? AND kind = 'cancelled'", event))
+            .withFailMessage("Organizer cancellation notified the wrong recipients")
+            .containsExactly(guest)
+    }
 
     @Test
     fun `organizer cancels a recruiting event`() {

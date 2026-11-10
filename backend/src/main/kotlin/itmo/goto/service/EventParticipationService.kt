@@ -30,6 +30,7 @@ class EventParticipationService(
     private val users: UserRepository,
     private val identity: Identity,
     private val clock: Clock,
+    private val notifications: NotificationQueue,
 ) {
     @Transactional(noRollbackFor = [ApiFailure::class])
     fun join(id: UUID): Card {
@@ -44,12 +45,13 @@ class EventParticipationService(
                 {
                     if (role == Role.OUTSIDER) {
                         participations.save(Participation(event, user))
+                        notifications.joined(event, user, now)
                     }
-                    event.settle(it)
+                    notifications.settle(event, it, now)
                     event.card(identity.user(), true)
                 },
                 { meeting, refusal ->
-                    event.settle(meeting)
+                    notifications.settle(event, meeting, now)
                     throw ApiFailure(refusal)
                 },
             )
@@ -63,12 +65,13 @@ class EventParticipationService(
         event.meeting().leave(role, now).fold(
             {
                 if (role == Role.PARTICIPANT) {
+                    notifications.left(event, users.getReferenceById(identity.user()))
                     participations.deleteByEventIdAndUserId(id, identity.user())
                 }
-                event.settle(it)
+                notifications.settle(event, it, now)
             },
             { meeting, refusal ->
-                event.settle(meeting)
+                notifications.settle(event, meeting, now)
                 throw ApiFailure(refusal)
             },
         )

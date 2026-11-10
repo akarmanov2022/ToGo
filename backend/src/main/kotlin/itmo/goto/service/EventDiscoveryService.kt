@@ -30,6 +30,7 @@ class EventDiscoveryService(
     private val deadlines: EventDeadlineService,
     private val identity: Identity,
     private val clock: Clock,
+    private val notifications: NotificationQueue,
 ) {
     @Transactional
     fun events(filters: List<Specification<Event>>, limit: Int, offset: Int): EventPage {
@@ -53,7 +54,7 @@ class EventDiscoveryService(
     @Transactional
     fun event(id: UUID): Card {
         val event = events.locked(id) ?: throw ApiFailure(ApiError.Code.EVENT_NOT_FOUND, "Событие не найдено")
-        event.settle(event.meeting().current(clock.instant()))
+        notifications.settle(event, event.meeting().current(clock.instant()), clock.instant())
         return event.card(identity.user(), participations.existsByEventIdAndUserId(id, identity.user()))
     }
 

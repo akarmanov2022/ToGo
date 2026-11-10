@@ -14,12 +14,16 @@ import java.util.concurrent.TimeUnit
  * state through; this only keeps the stored states current between requests.
  */
 @Service
-class EventDeadlineService(private val events: EventRepository, private val clock: Clock) {
+class EventDeadlineService(
+    private val events: EventRepository,
+    private val clock: Clock,
+    private val notifications: NotificationQueue,
+) {
     @Scheduled(fixedDelay = 1, timeUnit = TimeUnit.MINUTES)
     @Transactional
     fun settle() {
         events.due(clock.instant()).forEach { id ->
-            events.locked(id)?.let { it.settle(it.meeting().current(clock.instant())) }
+            events.locked(id)?.let { notifications.settle(it, it.meeting().current(clock.instant()), clock.instant()) }
         }
     }
 }

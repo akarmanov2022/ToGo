@@ -9,6 +9,7 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager
 import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.core.queryForList
 import org.springframework.test.context.bean.override.convention.TestBean
 import java.time.Clock
 import java.time.Duration
@@ -19,7 +20,7 @@ import java.util.UUID
 import kotlin.random.Random
 
 @DataJpaTest(showSql = false)
-@Import(PostgresConfiguration::class, EventDeadlineService::class)
+@Import(PostgresConfiguration::class, EventDeadlineService::class, NotificationQueue::class)
 class EventDeadlineServiceTest(
     @Autowired private val deadlines: EventDeadlineService,
     @Autowired private val jdbc: JdbcTemplate,
@@ -27,6 +28,33 @@ class EventDeadlineServiceTest(
 ) {
     @TestBean
     private lateinit var clock: Clock
+
+    @Test
+    fun `deadline confirms every participant once`() {
+        val event = event("recruiting", now, now.plus(Duration.ofHours(2)))
+        val guest = Rows(jdbc).user()
+        Rows(jdbc).participant(event, guest)
+        jdbc.update("UPDATE events SET participants_count = 2 WHERE id = ?", event)
+        deadlines.settle()
+        deadlines.settle()
+        entities.flush()
+        assertThat(jdbc.queryForList<UUID>("SELECT user_id FROM notifications WHERE event_id = ? AND kind = 'confirmed'", event))
+            .withFailMessage("Deadline did not confirm each participant exactly once")
+            .containsExactlyInAnyOrder(guest, jdbc.queryForObject("SELECT organizer_id FROM events WHERE id = ?", UUID::class.java, event))
+    }
+
+    @Test
+    fun `system cancellation notifies organizer and guest`() {
+        val event = event("recruiting", now, now.plus(Duration.ofHours(2)))
+        val guest = Rows(jdbc).user()
+        Rows(jdbc).participant(event, guest)
+        jdbc.update("UPDATE events SET participants_count = 2, min_users = 3 WHERE id = ?", event)
+        deadlines.settle()
+        entities.flush()
+        assertThat(jdbc.queryForList<UUID>("SELECT user_id FROM notifications WHERE event_id = ? AND kind = 'cancelled'", event))
+            .withFailMessage("System cancellation did not notify organizer and guest")
+            .containsExactlyInAnyOrder(guest, jdbc.queryForObject("SELECT organizer_id FROM events WHERE id = ?", UUID::class.java, event))
+    }
 
     @Test
     fun `deadline closes the registration of an event with the minimum`() {

@@ -24,7 +24,7 @@ import java.util.UUID
 import kotlin.random.Random
 
 @DataJpaTest(showSql = false)
-@Import(PostgresConfiguration::class, EventDiscoveryService::class, EventDeadlineService::class)
+@Import(PostgresConfiguration::class, EventDiscoveryService::class, EventDeadlineService::class, NotificationQueue::class)
 class EventDiscoveryServiceTest(
     @Autowired private val discovery: EventDiscoveryService,
     @Autowired private val jdbc: JdbcTemplate,
