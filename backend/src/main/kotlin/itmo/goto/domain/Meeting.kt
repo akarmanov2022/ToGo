@@ -3,12 +3,7 @@ package itmo.goto.domain
 import java.time.Instant
 
 /**
- * Событие так, как его видят правила: когда оно проходит, сколько людей собирает и в каком из пяти состояний
- * находится.
- *
- * Каждый запрос сначала актуализирует состояние по серверному времени, поэтому запоздавшая фоновая обработка
- * не оставит регистрацию открытой после срока организатора. Запросы не меняют встречу, а возвращают
- * [Decision] со встречей для сохранения.
+ * Событие.
  */
 class Meeting(
     private val schedule: Schedule,
@@ -22,7 +17,7 @@ class Meeting(
     constructor(schedule: Schedule, limits: Limits) : this(schedule, limits, 1, State.RECRUITING)
 
     /**
-     * Сохранённое состояние, которое может отставать от часов, пока его не актуализирует [current].
+     * Сохранённое состояние.
      */
     fun state(): State = state
 
@@ -60,14 +55,29 @@ class Meeting(
      *
      * Организатор и участники принимаются без изменений в любом состоянии.
      */
-    fun join(role: Role, agenda: Agenda, now: Instant): Decision = current(now).admission(role, agenda, now)
+    fun join(role: Role, agenda: Agenda, now: Instant): Decision = current(now).run {
+        when {
+            role != Role.OUTSIDER -> Accepted(this)
+            state != State.RECRUITING -> Refused(this, blocked())
+            limits.full(participants) -> Refused(this, Refusal.EVENT_FULL)
+            agenda.conflicts(schedule, now) -> Refused(this, Refusal.SCHEDULE_CONFLICT)
+            else -> Accepted(Meeting(schedule, limits, participants + 1, state))
+        }
+    }
 
     /**
      * Выпускает участника, пока регистрация открыта, освобождая место без отмены встречи даже ниже минимума.
      *
      * Посторонние принимаются без изменений в любом состоянии; организатору всегда отказывается.
      */
-    fun leave(role: Role, now: Instant): Decision = current(now).departure(role)
+    fun leave(role: Role, now: Instant): Decision = current(now).run {
+        when {
+            role == Role.OUTSIDER -> Accepted(this)
+            role == Role.ORGANIZER -> Refused(this, Refusal.ORGANIZER_CANNOT_LEAVE)
+            state != State.RECRUITING -> Refused(this, blocked())
+            else -> Accepted(Meeting(schedule, limits, participants - 1, state))
+        }
+    }
 
     /**
      * Позволяет организатору задать новые [limits] и новый срок регистрации [deadline], пока регистрация открыта,
@@ -81,7 +91,14 @@ class Meeting(
         require(schedule.moved(deadline).violations(now).isEmpty()) {
             "Meeting deadline must pass its own checks before a change"
         }
-        return current(now).revision(role, limits, deadline)
+        return current(now).run {
+            when {
+                role != Role.ORGANIZER -> Refused(this, Refusal.FORBIDDEN)
+                state != State.RECRUITING -> Refused(this, blocked())
+                !limits.holds(participants) -> Refused(this, Refusal.CAPACITY_BELOW_PARTICIPANTS)
+                else -> Accepted(Meeting(schedule.moved(deadline), limits, participants, state))
+            }
+        }
     }
 
     /**
@@ -89,7 +106,15 @@ class Meeting(
      *
      * Повторная отмена встречи, уже отменённой организатором, принимается без изменений даже после начала.
      */
-    fun cancel(role: Role, now: Instant): Decision = current(now).cancellation(role, now)
+    fun cancel(role: Role, now: Instant): Decision = current(now).run {
+        when {
+            role != Role.ORGANIZER -> Refused(this, Refusal.FORBIDDEN)
+            state == State.CANCELLED_BY_ORGANIZER -> Accepted(this)
+            state in setOf(State.RECRUITING, State.REGISTRATION_CLOSED) && !schedule.started(now) ->
+                Accepted(Meeting(schedule, limits, participants, State.CANCELLED_BY_ORGANIZER))
+            else -> Refused(this, Refusal.INVALID_EVENT_STATE)
+        }
+    }
 
     /**
      * Сообщает, действует ли встреча в момент [now] и начинается ли она меньше чем через три часа от расписания
@@ -97,37 +122,6 @@ class Meeting(
      */
     fun clashes(other: Schedule, now: Instant): Boolean =
         current(now).state in setOf(State.RECRUITING, State.REGISTRATION_CLOSED) && schedule.near(other)
-
-    private fun admission(role: Role, agenda: Agenda, now: Instant): Decision = when {
-        role != Role.OUTSIDER -> Accepted(this)
-        state != State.RECRUITING -> Refused(this, blocked())
-        limits.full(participants) -> Refused(this, Refusal.EVENT_FULL)
-        agenda.conflicts(schedule, now) -> Refused(this, Refusal.SCHEDULE_CONFLICT)
-        else -> Accepted(Meeting(schedule, limits, participants + 1, state))
-    }
-
-    private fun departure(role: Role): Decision = when {
-        role == Role.OUTSIDER -> Accepted(this)
-        role == Role.ORGANIZER -> Refused(this, Refusal.ORGANIZER_CANNOT_LEAVE)
-        state != State.RECRUITING -> Refused(this, blocked())
-        else -> Accepted(Meeting(schedule, limits, participants - 1, state))
-    }
-
-    private fun revision(role: Role, limits: Limits, deadline: Instant): Decision = when {
-        role != Role.ORGANIZER -> Refused(this, Refusal.FORBIDDEN)
-        state != State.RECRUITING -> Refused(this, blocked())
-        !limits.holds(participants) -> Refused(this, Refusal.CAPACITY_BELOW_PARTICIPANTS)
-        else -> Accepted(Meeting(schedule.moved(deadline), limits, participants, state))
-    }
-
-    private fun cancellation(role: Role, now: Instant): Decision = when {
-        role != Role.ORGANIZER -> Refused(this, Refusal.FORBIDDEN)
-        state == State.CANCELLED_BY_ORGANIZER -> Accepted(this)
-        state in setOf(State.RECRUITING, State.REGISTRATION_CLOSED) && !schedule.started(now) ->
-            Accepted(Meeting(schedule, limits, participants, State.CANCELLED_BY_ORGANIZER))
-
-        else -> Refused(this, Refusal.INVALID_EVENT_STATE)
-    }
 
     private fun blocked(): Refusal =
         if (state == State.REGISTRATION_CLOSED) Refusal.REGISTRATION_CLOSED else Refusal.INVALID_EVENT_STATE
