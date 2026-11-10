@@ -12,9 +12,6 @@ import tools.jackson.databind.json.JsonMapper
 
 /**
  * Protects the API with application access tokens sent as Bearer credentials.
- *
- * Only the Telegram login and the health probe are open. Nothing authenticates through
- * cookies, forms, or HTTP Basic, which is why CSRF protection is off, and no response is cached.
  */
 @Configuration(proxyBeanMethods = false)
 class SecurityConfiguration {
