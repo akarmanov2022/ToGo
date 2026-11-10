@@ -22,7 +22,7 @@ if ! docker info &> /dev/null; then
 fi
 
 # Проверяем Docker Compose
-if ! docker compose version &> /dev/null; then
+if ! docker-compose version &> /dev/null; then
     echo "ERROR: Docker Compose is not installed"
     exit 1
 fi
@@ -37,7 +37,7 @@ cd "$ROOT_DIR"
 
 echo "Building and starting services..."
 
-if docker compose \
+if docker-compose \
     -f "$COMPOSE_FILE" \
     up --build -d --remove-orphans; then
 
@@ -46,7 +46,7 @@ if docker compose \
     echo " ToGo started successfully!"
     echo "=================================="
     echo ""
-    docker compose -f "$COMPOSE_FILE" ps
+    docker-compose -f "$COMPOSE_FILE" ps
 else
     echo ""
     echo "ERROR: Failed to start services"
