@@ -10,12 +10,11 @@ import org.springframework.context.annotation.Configuration
 @Configuration(proxyBeanMethods = false)
 class OpenApiConfiguration {
     @Bean
-    fun openApi(): OpenAPI =
-        OpenAPI()
-            .components(
-                Components().addSecuritySchemes(
-                    "bearer",
-                    SecurityScheme().type(SecurityScheme.Type.HTTP).scheme("bearer").bearerFormat("JWT"),
-                ),
-            ).addSecurityItem(SecurityRequirement().addList("bearer"))
+    fun openApi(): OpenAPI = OpenAPI()
+        .components(
+            Components().addSecuritySchemes(
+                "bearer",
+                SecurityScheme().type(SecurityScheme.Type.HTTP).scheme("bearer").bearerFormat("JWT"),
+            ),
+        ).addSecurityItem(SecurityRequirement().addList("bearer"))
 }
