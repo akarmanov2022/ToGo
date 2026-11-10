@@ -56,7 +56,7 @@ class MigrationTest(@Autowired private val jdbc: JdbcTemplate) {
 
     @Test
     fun `single coordinate is rejected`() {
-        assertThatThrownBy { Rows(jdbc).event(latitude = Random.nextDouble(-90.0, 90.0)) }
+        assertThatThrownBy { Rows(jdbc).event(point = Random.nextDouble(-90.0, 90.0) to null) }
             .withFailMessage("Database doesnt reject a point with only a latitude")
             .isInstanceOf(DataIntegrityViolationException::class.java)
     }

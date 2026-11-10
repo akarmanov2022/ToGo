@@ -29,8 +29,7 @@ class EventsService : EventsApiService {
         hasFreePlaces: Boolean,
         limit: Int,
         offset: Int,
-    ): EventPage =
-        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Event listing is not implemented yet")
+    ): EventPage = throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Event listing is not implemented yet")
 
     override fun getEvent(eventId: UUID): Event =
         throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Event details are not implemented yet")

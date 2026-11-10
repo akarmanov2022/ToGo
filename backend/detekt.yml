@@ -1,0 +1,6 @@
+build:
+  maxIssues: 0
+performance:
+  SpreadOperator:
+    # Spring Boot's runApplication takes launch arguments as a vararg, so main spreads them once at startup.
+    excludes: ['**/GotoApplication.kt']
