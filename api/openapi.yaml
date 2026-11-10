@@ -7,7 +7,7 @@ info:
     Контракт Telegram Mini App для совместных событий.
     JSON использует camelCase, идентификаторы — UUID, даты — RFC 3339
     с обязательным часовым поясом. Сервер возвращает даты в UTC.
-    Все операции, кроме входа через Telegram, требуют Bearer-токен.
+    Все операции, кроме входа через Telegram и webhook бота, требуют Bearer-токен.
     Неизвестные поля запросов отклоняются с 400 VALIDATION_ERROR.
 
     Организатор определяется из авторизации, автоматически становится участником
@@ -27,6 +27,8 @@ info:
 tags:
   - name: Auth
     description: Вход через Telegram Mini App
+  - name: Bot
+    description: Служебные обновления Telegram-бота
   - name: Users
     description: Текущий пользователь
   - name: Categories
@@ -40,6 +42,42 @@ security:
   - bearerAuth: []
 
 paths:
+  /api/v1/bot/webhook:
+    post:
+      tags: [Bot]
+      operationId: receiveBotUpdate
+      summary: Принять обновление бота от Telegram
+      description: |
+        Telegram присылает обновление по HTTPS. Сервер сравнивает заголовок
+        X-Telegram-Bot-Api-Secret-Token с TELEGRAM_WEBHOOK_SECRET и отвечает
+        на команду /start в личном чате приветствием с кнопкой Mini App.
+        Остальные обновления подтверждаются без действия.
+      security: []
+      parameters:
+        - name: X-Telegram-Bot-Api-Secret-Token
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '204':
+          description: Обновление принято
+        '403':
+          description: Секрет webhook не совпадает (FORBIDDEN)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '500':
+          $ref: '#/components/responses/UnexpectedError'
+
   /api/v1/auth/telegram:
     post:
       tags: [Auth]

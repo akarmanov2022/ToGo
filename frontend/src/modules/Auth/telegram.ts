@@ -1,5 +1,6 @@
 interface TelegramWebApp {
   initData: string
+  platform: string
   ready: () => void
   expand: () => void
 }
