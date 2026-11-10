@@ -9,5 +9,5 @@ node_modules/
 frontend/dist/
 *.tsbuildinfo
 
-.env
+infra/.env
 

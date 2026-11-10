@@ -3,14 +3,16 @@ services:
     image: postgres:18
     container_name: togodb
     environment:
-      POSTGRES_USER: ${DB_USER:-togo}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-togo}
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-12345678}
       POSTGRES_DB: togo
     hostname: togodb
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-togo} -d togo"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d togo"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -25,8 +27,8 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/togo
-      SPRING_DATASOURCE_USERNAME: ${DB_USER:-togo}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-togo}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-admin}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-12345678}
     depends_on:
       postgres:
         condition: service_healthy
