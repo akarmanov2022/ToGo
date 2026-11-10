@@ -4,6 +4,7 @@ import itmo.goto.PostgresConfiguration
 import itmo.goto.Rows
 import itmo.goto.auth.Identity
 import itmo.goto.generated.model.ApiError
+import itmo.goto.generated.model.EventCategory
 import itmo.goto.generated.model.UpdateProfileRequest
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
@@ -44,16 +45,51 @@ class UsersServiceTest(@Autowired private val service: UsersService, @Autowired 
 
     @Test
     fun `current user lists chosen categories`() {
-        Rows(jdbc).user(holder, Random.nextLong(1, 10_000_000_000), null)
-        val category = jdbc.queryForList("SELECT name FROM categories", String::class.java).random()
-        jdbc.update(
-            "INSERT INTO user_categories (user_id, category_id) SELECT ?, id FROM categories WHERE name = ?",
-            holder,
-            category,
-        )
-        assertThat(service.getCurrentUser().categories.map { it.name })
+        val rows = Rows(jdbc)
+        rows.user(holder, Random.nextLong(1, 10_000_000_000), null)
+        val category = EventCategory.entries.random()
+        rows.interest(holder, category.name)
+        assertThat(service.getCurrentUser().categories)
             .withFailMessage("Current user doesnt list the chosen categories")
             .containsExactly(category)
+    }
+
+    @Test
+    fun `current user lists categories in declaration order`() {
+        val rows = Rows(jdbc)
+        rows.user(holder, Random.nextLong(1, 10_000_000_000), null)
+        EventCategory.entries.shuffled().forEach { rows.interest(holder, it.name) }
+        assertThat(service.getCurrentUser().categories)
+            .withFailMessage("Current user doesnt list categories in declaration order")
+            .containsExactlyElementsOf(EventCategory.entries)
+    }
+
+    @Test
+    fun `current user counts organized events in any state`() {
+        val rows = Rows(jdbc)
+        rows.user(holder, Random.nextLong(1, 10_000_000_000), null)
+        val count = Random.nextInt(1, 5)
+        repeat(count) {
+            rows.event(
+                holder,
+                listOf("recruiting", "cancelled_by_organizer", "registration_closed", "finished").random(),
+            )
+        }
+        assertThat(service.getCurrentUser().createdEventsCount)
+            .withFailMessage("Current user doesnt count organized events in any state")
+            .isEqualTo(count)
+    }
+
+    @Test
+    fun `current user counts only finished events they visited`() {
+        val rows = Rows(jdbc)
+        rows.user(holder, Random.nextLong(1, 10_000_000_000), null)
+        rows.participant(rows.event(rows.user(), "finished"), holder)
+        rows.participant(rows.event(rows.user(), "registration_closed"), holder)
+        rows.event(rows.user(), "finished")
+        assertThat(service.getCurrentUser().visitedEventsCount)
+            .withFailMessage("Current user doesnt count only finished events they visited")
+            .isEqualTo(1)
     }
 
     @Test
@@ -68,7 +104,9 @@ class UsersServiceTest(@Autowired private val service: UsersService, @Autowired 
     fun `profile update answers not implemented`() {
         assertThat(
             catchThrowableOfType(ResponseStatusException::class.java) {
-                service.updateCurrentUser(UpdateProfileRequest("Имя ${Random.nextInt()}", setOf(UUID.randomUUID())))
+                service.updateCurrentUser(
+                    UpdateProfileRequest("Имя ${Random.nextInt()}", setOf(EventCategory.entries.random())),
+                )
             }?.statusCode,
         )
             .withFailMessage("Profile update doesnt answer 501")

@@ -3,6 +3,7 @@ package itmo.goto.service
 import itmo.goto.generated.api.EventsApiService
 import itmo.goto.generated.model.CreateEventRequest
 import itmo.goto.generated.model.Event
+import itmo.goto.generated.model.EventCategory
 import itmo.goto.generated.model.EventPage
 import itmo.goto.generated.model.EventState
 import itmo.goto.generated.model.ParticipantPage
@@ -21,7 +22,7 @@ class EventsService : EventsApiService {
 
     override fun getEvents(
         query: String?,
-        categoryId: UUID?,
+        category: EventCategory?,
         startsFrom: OffsetDateTime?,
         startsTo: OffsetDateTime?,
         state: EventState?,

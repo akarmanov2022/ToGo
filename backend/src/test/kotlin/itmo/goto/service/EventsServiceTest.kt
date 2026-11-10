@@ -1,6 +1,7 @@
 package itmo.goto.service
 
 import itmo.goto.generated.model.CreateEventRequest
+import itmo.goto.generated.model.EventCategory
 import itmo.goto.generated.model.EventState
 import itmo.goto.generated.model.UpdateEventRequest
 import org.assertj.core.api.Assertions.assertThat
@@ -22,13 +23,14 @@ class EventsServiceTest {
                 EventsService().createEvent(
                     CreateEventRequest(
                         "Событие ${Random.nextInt()}",
+                        "Описание ${Random.nextInt()}",
                         "Место ${Random.nextInt()}",
                         closes.plusHours(1),
                         closes.plusHours(3),
                         closes,
                         1,
                         Random.nextInt(2, 51),
-                        setOf(UUID.randomUUID()),
+                        EventCategory.entries.random(),
                     ),
                 )
             }?.statusCode,
@@ -44,7 +46,7 @@ class EventsServiceTest {
             catchThrowableOfType(ResponseStatusException::class.java) {
                 EventsService().getEvents(
                     "запрос ${Random.nextInt()}",
-                    UUID.randomUUID(),
+                    EventCategory.entries.random(),
                     from,
                     from.plusDays(Random.nextLong(1, 30)),
                     EventState.entries.random(),

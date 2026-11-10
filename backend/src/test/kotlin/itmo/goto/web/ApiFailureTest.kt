@@ -11,7 +11,6 @@ class ApiFailureTest {
     @ParameterizedTest
     @CsvSource(
         "VALIDATION_ERROR, BAD_REQUEST",
-        "CATEGORY_NOT_FOUND, BAD_REQUEST",
         "INVALID_TELEGRAM_INIT_DATA, UNAUTHORIZED",
         "UNAUTHORIZED, UNAUTHORIZED",
         "FORBIDDEN, FORBIDDEN",
@@ -22,6 +21,7 @@ class ApiFailureTest {
         "EVENT_FULL, CONFLICT",
         "CAPACITY_BELOW_PARTICIPANTS, CONFLICT",
         "ORGANIZER_CANNOT_LEAVE, CONFLICT",
+        "SCHEDULE_CONFLICT, CONFLICT",
         "INTERNAL_ERROR, INTERNAL_SERVER_ERROR",
     )
     fun `failure code decides http status`(code: ApiError.Code, status: HttpStatus) {
