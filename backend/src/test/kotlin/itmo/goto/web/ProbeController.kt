@@ -2,6 +2,7 @@ package itmo.goto.web
 
 import itmo.goto.generated.model.ApiError
 import itmo.goto.generated.model.CreateEventRequest
+import itmo.goto.generated.model.UpdateProfileRequest
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
@@ -24,6 +25,9 @@ import java.util.UUID
 class ProbeController {
     @PostMapping("/probe/events")
     fun create(@Valid @RequestBody request: CreateEventRequest): String = request.title
+
+    @PostMapping("/probe/profile")
+    fun profile(@Valid @RequestBody request: UpdateProfileRequest): String = request.name
 
     @GetMapping("/probe/events/{eventId}")
     fun event(@PathVariable eventId: UUID): String = eventId.toString()
