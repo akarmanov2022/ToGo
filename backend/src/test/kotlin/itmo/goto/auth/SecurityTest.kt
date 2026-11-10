@@ -110,6 +110,20 @@ class SecurityTest(
     }
 
     @Test
+    fun `api description is open without token`() {
+        assertThat(mvc.get().uri("/v3/api-docs/{group}", "group${Random.nextInt()}").exchange().response.status)
+            .withFailMessage("API description without a token answers 401")
+            .isNotEqualTo(HttpStatus.UNAUTHORIZED.value())
+    }
+
+    @Test
+    fun `swagger page is open without token`() {
+        assertThat(mvc.get().uri("/swagger-ui/{page}", "page${Random.nextInt()}.html").exchange().response.status)
+            .withFailMessage("Swagger page without a token answers 401")
+            .isNotEqualTo(HttpStatus.UNAUTHORIZED.value())
+    }
+
+    @Test
     fun `missing token gives unauthorized code`() {
         assertThat(mvc.get().uri("/api/v1/categories"))
             .bodyJson()
