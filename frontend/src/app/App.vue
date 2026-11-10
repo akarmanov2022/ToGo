@@ -9,7 +9,7 @@ const mockMode = shouldUseMocks()
 function initialize() {
   return auth.initialize(mockMode ? MOCK_INIT_DATA : getTelegramInitData())
 }
-void initialize()
+if (!mockMode) void initialize()
 </script>
 <template>
   <AuthGate :mock-mode="mockMode" @retry="initialize">

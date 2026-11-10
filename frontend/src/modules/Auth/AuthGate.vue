@@ -7,7 +7,7 @@ const auth = useAuthStore()
 
 <template>
   <p v-if="mockMode" class="mock-banner" role="status">
-    Локальный MSW-режим — тестовые данные, не настоящая авторизация
+    Демо-режим MSW — тестовые данные, не настоящая авторизация
   </p>
   <slot v-if="auth.status === 'authenticated'" />
   <main v-else class="login">
@@ -22,9 +22,15 @@ const auth = useAuthStore()
     </section>
     <section class="login-panel" aria-live="polite">
       <div class="login-panel-content">
-        <template v-if="auth.status === 'idle' || auth.status === 'loading'"
+        <template v-if="mockMode && auth.status !== 'loading'">
+          <h2>Добро пожаловать в ToGo</h2>
+          <p>Посмотрите приложение без Telegram с тестовым профилем.</p>
+          <p v-if="auth.status === 'error'" role="alert">{{ auth.errorMessage }}</p>
+          <button type="button" class="button" @click="$emit('retry')">Войти в демо</button>
+        </template>
+        <template v-else-if="auth.status === 'idle' || auth.status === 'loading'"
           ><h2>Открываем ToGo</h2>
-          <p>Выполняется вход через Telegram…</p></template
+          <p>{{ mockMode ? 'Входим в демо…' : 'Выполняется вход через Telegram…' }}</p></template
         >
         <template v-else-if="auth.status === 'outside'"
           ><h2>Откройте ToGo в Telegram</h2>

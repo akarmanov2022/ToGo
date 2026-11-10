@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { resolveMockMode } from './mode'
 
 describe('resolveMockMode', () => {
+  it('в отдельной демо-сборке разрешает моковый вход без Telegram', () => {
+    expect(
+      resolveMockMode({ dev: false, demo: true, envFlag: undefined, hasInitData: false }),
+    ).toBe(true)
+  })
   it('в dev без Telegram автоматически включает моки — моковый вход без авторизации', () => {
     expect(resolveMockMode({ dev: true, envFlag: undefined, hasInitData: false })).toBe(true)
   })
