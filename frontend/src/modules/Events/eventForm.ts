@@ -72,8 +72,8 @@ export function validateEventForm(form: EventFormValues, now: Date): EventFormEr
   } else if (form.minUsers > form.maxUsers) {
     errors.minUsers = 'Минимум не больше максимума'
   }
-  if (!Number.isInteger(form.maxUsers) || form.maxUsers < 2 || form.maxUsers > MAX_PARTICIPANTS) {
-    errors.maxUsers = `Максимум от 2 до ${MAX_PARTICIPANTS}`
+  if (!Number.isInteger(form.maxUsers) || form.maxUsers < 1 || form.maxUsers > MAX_PARTICIPANTS) {
+    errors.maxUsers = `Максимум от 1 до ${MAX_PARTICIPANTS}`
   }
 
   const icon = form.icon.trim()

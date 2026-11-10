@@ -63,7 +63,7 @@ describe('cardAction', () => {
     expect(cardAction(fixture({}), now)).toEqual({ kind: 'join', label: 'Присоединиться' })
     expect(cardAction(fixture({ availableSlots: 0 }), now)).toEqual({
       kind: 'unavailable',
-      label: 'Забито',
+      label: 'Присоединиться',
     })
   })
 

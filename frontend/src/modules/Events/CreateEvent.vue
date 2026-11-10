@@ -5,9 +5,7 @@ import { useRouter } from 'vue-router'
 import { apiRequest, ApiError } from '@/common/api/client'
 import type { components } from '@/common/api/schema'
 import AppButton from '@/common/ui/AppButton.vue'
-import AppChip from '@/common/ui/AppChip.vue'
 import AppField from '@/common/ui/AppField.vue'
-import ChipGroup from '@/common/ui/ChipGroup.vue'
 import LoadingText from '@/common/ui/LoadingText.vue'
 import { useAuthStore } from '@/modules/Auth'
 import { PlacePicker, toCoordinateFields, type MeetingPlace } from '@/modules/Map'
@@ -15,6 +13,7 @@ import { EventSchedule, emptySchedule } from '@/modules/EventSchedule'
 import { creationCategories, creationRestrictions, validateCreation } from './creation'
 import { demoPlaces } from './demoPlaces'
 import EventCard from './EventCard.vue'
+import CategorySelect from './CategorySelect.vue'
 import { formatStart } from './format'
 
 const props = withDefaults(defineProps<{ places?: MeetingPlace[] }>(), { places: () => demoPlaces })
@@ -50,7 +49,7 @@ const categoryQuery = useQuery({
   queryKey: ['categories'],
   queryFn: () => apiRequest<components['schemas']['Category'][]>('/api/v1/categories'),
 })
-const categories = computed<{ code: string; name: string }[]>(
+const categories = computed<components['schemas']['Category'][]>(
   () => categoryQuery.data.value ?? [...creationCategories],
 )
 const participating = useQuery({
@@ -96,9 +95,10 @@ const create = useMutation({
         maxUsers: Number(draft.maxUsers),
       } satisfies components['schemas']['CreateEventRequest'],
     }),
-  onSuccess: async (event) => {
+  onSuccess: async () => {
     await queryClient.invalidateQueries({ queryKey: ['events'] })
-    await router.push(`/events/${event.id}`)
+    await queryClient.invalidateQueries({ queryKey: ['current-user'] })
+    await router.push('/')
   },
   onError: (error) => {
     serverError.value =
@@ -154,23 +154,20 @@ function digits(field: 'minUsers' | 'maxUsers', event: Event) {
           :aria-invalid="Boolean(touched && errors.title)"
         />
         <p v-if="touched && errors.title" class="error">{{ errors.title }}</p>
-        <div class="field" role="group" aria-labelledby="create-category-label">
-          <span id="create-category-label" class="label">Категория</span>
-          <ChipGroup>
-            <AppChip
-              v-for="item in categories"
-              :key="item.code"
-              tone="pink"
-              :active="draft.category === item.code"
-              :aria-pressed="draft.category === item.code"
-              @click="selectCategory(item.code)"
-              >{{ item.name }}</AppChip
-            >
-          </ChipGroup>
-          <p v-if="categoryQuery.isError.value" class="hint">
-            Не удалось обновить категории.
-            <button type="button" @click="categoryQuery.refetch()">Повторить</button>
-          </p>
+        <div class="field">
+          <CategorySelect
+            :model-value="draft.category"
+            :categories="categories"
+            @update:model-value="selectCategory"
+          />
+          <p v-if="categoryQuery.isError.value" class="hint">Не удалось обновить категории.</p>
+          <AppButton
+            v-if="categoryQuery.isError.value"
+            size="sm"
+            variant="secondary"
+            @click="categoryQuery.refetch()"
+            >Повторить</AppButton
+          >
         </div>
         <label class="field"
           ><span class="label">Описание</span
@@ -220,7 +217,9 @@ function digits(field: 'minUsers' | 'maxUsers', event: Event) {
         <p v-if="touched && errors.minUsers" class="error">{{ errors.minUsers }}</p>
         <p v-if="touched && errors.maxUsers" class="error">{{ errors.maxUsers }}</p>
         <div class="actions">
-          <AppButton type="submit" :disabled="!canCreate"
+          <AppButton
+            type="submit"
+            :disabled="create.isPending.value || auth.status !== 'authenticated'"
             ><LoadingText v-if="create.isPending.value" label="Создаём" /><template v-else
               >Создать встречу</template
             ></AppButton
@@ -233,8 +232,14 @@ function digits(field: 'minUsers' | 'maxUsers', event: Event) {
         <p v-for="reason in restrictions" :key="reason" class="error" role="status">{{ reason }}</p>
         <p v-if="participating.isError.value" class="error" role="alert">
           Не удалось проверить ваши встречи.
-          <button type="button" @click="participating.refetch()">Повторить</button>
         </p>
+        <AppButton
+          v-if="participating.isError.value"
+          size="sm"
+          variant="secondary"
+          @click="participating.refetch()"
+          >Повторить</AppButton
+        >
         <p v-if="serverError" class="error" role="alert">{{ serverError }}</p>
         <p v-for="(message, field) in serverDetails" :key="field" class="error">{{ message }}</p>
       </form>
@@ -247,6 +252,7 @@ function digits(field: 'minUsers' | 'maxUsers', event: Event) {
           :meta="`${categories.find((item) => item.code === draft.category)?.name || 'Категория'} · ${draft.schedule.startsAt ? formatStart(draft.schedule.startsAt) : 'Дата и время'}`"
           :place="`${draft.place?.address || 'Место'} · до ${draft.maxUsers || '—'} участников`"
           state="Идёт набор"
+          :icon="draft.icon"
         />
         <p class="preview-description">{{ draft.description }}</p>
       </aside>

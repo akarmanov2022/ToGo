@@ -2,17 +2,23 @@ export interface MockModeInput {
   dev: boolean
   envFlag: string | undefined
   hasInitData: boolean
+  inTelegram?: boolean
   demo?: boolean
 }
 
 /**
- * Пока авторизация через Telegram недоступна, локальная разработка без `initData`
- * предлагает кнопку входа через MSW-моки (демо-вход с баннером тестового режима).
- * Отдельная сборка --mode demo разрешает этот же сценарий на опубликованном сайте.
- * Явный `VITE_MSW_ENABLED=false` отключает автодовход и оставляет запросы настоящему
- * бэкенду, `true` включает моки даже внутри Telegram.
+ * В Telegram всегда используется настоящий API, даже в demo-сборке.
+ * Моки разрешены только вне Telegram для разработки и отдельной demo-сборки.
+ * Явный false отключает их; production не включает их ни при каком флаге.
  */
-export function resolveMockMode({ dev, envFlag, hasInitData, demo }: MockModeInput): boolean {
+export function resolveMockMode({
+  dev,
+  envFlag,
+  hasInitData,
+  inTelegram,
+  demo,
+}: MockModeInput): boolean {
+  if (hasInitData || inTelegram || envFlag === 'false') return false
   if (demo) return true
   if (!dev) return false
   if (envFlag === 'true') return true
@@ -29,5 +35,8 @@ export function shouldUseMocks(): boolean {
     demo: import.meta.env.MODE === 'demo',
     envFlag: import.meta.env.VITE_MSW_ENABLED,
     hasInitData: Boolean(window.Telegram?.WebApp?.initData),
+    inTelegram: Boolean(
+      window.Telegram?.WebApp?.platform && window.Telegram.WebApp.platform !== 'unknown',
+    ),
   })
 }

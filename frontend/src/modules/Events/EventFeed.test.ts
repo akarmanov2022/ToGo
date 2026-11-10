@@ -77,7 +77,7 @@ it('показывает кнопку по роли пользователя: о
     ).toBeUndefined()
 
     const fullButton = card(wrapper, 'Забитая встреча').get('button.join-button')
-    expect(fullButton.text()).toBe('Забито')
+    expect(fullButton.text()).toBe('Присоединиться')
     expect(fullButton.attributes('disabled')).toBeDefined()
   } finally {
     wrapper.unmount()
@@ -99,7 +99,7 @@ it('отменяет событие организатором только по
     await flushPromises()
     expect(apiRequest).not.toHaveBeenCalledWith('/api/v1/events/own/cancel', expect.anything())
     expect(card(wrapper, 'Своя встреча').get('.confirm').text()).toContain(
-      'Отменить событие? Участники получат уведомление.',
+      'Отменить событие? Это действие нельзя отменить.',
     )
 
     await card(wrapper, 'Своя встреча').get('.confirm button').trigger('click')

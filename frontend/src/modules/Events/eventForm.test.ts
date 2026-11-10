@@ -32,8 +32,8 @@ describe('validateEventForm', () => {
     expect(validateEventForm(form, now)).toEqual({})
   })
 
-  it('не разрешает максимум меньше двух по временному правилу интерфейса', () => {
-    expect(validateEventForm({ ...valid, minUsers: 1, maxUsers: 1 }, now).maxUsers).toBeDefined()
+  it('принимает событие для одного согласно контракту', () => {
+    expect(validateEventForm({ ...valid, minUsers: 1, maxUsers: 1 }, now)).toEqual({})
   })
 
   it('отклоняет название из пробелов и слишком длинное', () => {

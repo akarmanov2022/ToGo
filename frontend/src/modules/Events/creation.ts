@@ -37,8 +37,8 @@ export function validateCreation(draft: CreationDraft, now = new Date()) {
     errors.icon = 'Укажите один эмодзи или оставьте пустым'
   if (!/^\d+$/.test(draft.minUsers) || Number(draft.minUsers) < 1 || Number(draft.minUsers) > 50)
     errors.minUsers = 'Минимум: целое число от 1 до 50'
-  if (!/^\d+$/.test(draft.maxUsers) || Number(draft.maxUsers) < 2 || Number(draft.maxUsers) > 50)
-    errors.maxUsers = 'Максимум: целое число от 2 до 50'
+  if (!/^\d+$/.test(draft.maxUsers) || Number(draft.maxUsers) < 1 || Number(draft.maxUsers) > 50)
+    errors.maxUsers = 'Максимум: целое число от 1 до 50'
   else if (!errors.minUsers && Number(draft.minUsers) > Number(draft.maxUsers))
     errors.maxUsers = 'Максимум не может быть меньше минимума'
   return errors

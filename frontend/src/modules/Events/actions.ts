@@ -60,7 +60,7 @@ export function cardAction(event: Event, now: Date): CardAction {
   if (!registrationOpen) return unavailableLabel(event)
   return event.availableSlots > 0
     ? { kind: 'join', label: 'Присоединиться' }
-    : { kind: 'unavailable', label: 'Забито' }
+    : { kind: 'unavailable', label: 'Присоединиться' }
 }
 
 function unavailableLabel(event: Event): CardAction {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, useId } from 'vue'
+import { usePopover } from './popover'
 
 const props = withDefaults(
   defineProps<{
@@ -14,8 +15,10 @@ const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 const id = useId()
 const root = ref<HTMLElement | null>(null)
 const trigger = ref<HTMLButtonElement | null>(null)
+const panel = ref<HTMLElement | null>(null)
 const open = ref(false)
 const draft = reactive({ hours: '12', minutes: '00' })
+const { offset } = usePopover(open, root, panel)
 const fields = [
   { key: 'hours', label: 'Часы', max: 23, step: 1 },
   { key: 'minutes', label: 'Минуты', max: 55, step: 5 },
@@ -62,7 +65,8 @@ function clear() {
   close()
 }
 function leave(event: FocusEvent) {
-  if (!root.value?.contains(event.relatedTarget as Node | null)) open.value = false
+  if (event.relatedTarget === null) return
+  if (!root.value?.contains(event.relatedTarget as Node)) open.value = false
 }
 </script>
 <template>
@@ -92,7 +96,15 @@ function leave(event: FocusEvent) {
         <path d="M12 6v6l4 2" />
       </svg>
     </button>
-    <div v-if="open" :id="id" class="time-panel" role="group" :aria-label="label">
+    <div
+      v-if="open"
+      :id="id"
+      ref="panel"
+      class="time-panel"
+      role="group"
+      :aria-label="label"
+      :style="offset ? { left: `${offset}px` } : undefined"
+    >
       <div class="time-columns">
         <div v-for="field in fields" :key="field.key" class="time-column">
           <label :for="`${id}-${field.key}`"
@@ -166,6 +178,7 @@ function leave(event: FocusEvent) {
 </template>
 <style scoped>
 .time-picker {
+  position: relative;
   min-width: 0;
 }
 .time-trigger {
@@ -191,11 +204,17 @@ function leave(event: FocusEvent) {
   border-color: #b42318;
 }
 .time-panel {
-  margin-top: 8px;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 40;
+  width: 308px;
+  max-width: calc(100vw - 24px);
   padding: 14px;
   border: 1px solid #edcfe2;
   border-radius: 12px;
   background: #fff;
+  box-shadow: 0 18px 44px rgba(41, 38, 87, 0.16);
 }
 .time-columns {
   position: relative;

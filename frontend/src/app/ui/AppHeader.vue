@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import AppButton from '@/common/ui/AppButton.vue'
+import { useAuthStore, useCurrentUser } from '@/modules/Auth'
+import { computed } from 'vue'
 
 defineProps<{ showCreate: boolean }>()
+const auth = useAuthStore()
+const currentUser = useCurrentUser()
+const profile = computed(() => currentUser.data.value ?? auth.user)
+const letter = computed(
+  () => profile.value?.name.trim().charAt(0).toLocaleUpperCase('ru-RU') || 'Т',
+)
 </script>
 <template>
   <header class="header">
@@ -12,7 +20,10 @@ defineProps<{ showCreate: boolean }>()
         <RouterLink to="/profile">Профиль</RouterLink>
       </nav>
       <AppButton v-if="showCreate" class="create" to="/create">+ Создать событие</AppButton>
-      <RouterLink class="avatar" to="/profile" aria-label="Профиль">С</RouterLink>
+      <RouterLink class="avatar" to="/profile" aria-label="Профиль">
+        <img v-if="profile?.photoUrl" :src="profile.photoUrl" alt="" />
+        <span v-else>{{ letter }}</span>
+      </RouterLink>
     </div>
   </header>
 </template>
@@ -54,6 +65,12 @@ defineProps<{ showCreate: boolean }>()
 }
 .avatar {
   display: none;
+}
+.avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
 }
 @media (max-width: 700px) {
   .inner {

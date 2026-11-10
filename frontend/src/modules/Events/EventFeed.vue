@@ -2,6 +2,9 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { ApiError } from '@/common/api/client'
+import { useRouter } from 'vue-router'
+import { CalendarPicker, localDate } from '@/modules/EventSchedule'
+import { EventMap } from '@/modules/Map'
 import AppButton from '@/common/ui/AppButton.vue'
 import AppChip from '@/common/ui/AppChip.vue'
 import AppField from '@/common/ui/AppField.vue'
@@ -11,6 +14,8 @@ import {
   cancelEvent,
   fetchCategories,
   fetchFeedPage,
+  fetchFeedMap,
+  validateFeedDates,
   joinEvent,
   leaveEvent,
   type EventCategory,
@@ -22,9 +27,22 @@ import { metaLine, participantsLine } from './format'
 import EventCard from './EventCard.vue'
 
 const queryClient = useQueryClient()
+const router = useRouter()
 const category = ref<EventCategory | null>(null)
 const search = ref('')
 const query = ref('')
+const dateFrom = ref('')
+const dateTo = ref('')
+const hasFreePlaces = ref(false)
+const view = ref<'list' | 'map'>('list')
+const filters = computed(() => ({
+  category: category.value,
+  query: query.value,
+  dateFrom: dateFrom.value,
+  dateTo: dateTo.value,
+  hasFreePlaces: hasFreePlaces.value,
+}))
+const dateError = computed(() => validateFeedDates(filters.value))
 const now = ref(new Date())
 const startsFrom = ref(new Date())
 const clock = setInterval(() => {
@@ -38,7 +56,7 @@ watch(search, (value) => {
   }, 300)
 })
 watch(
-  [category, query],
+  [category, query, dateFrom, dateTo, hasFreePlaces],
   () => {
     startsFrom.value = new Date()
   },
@@ -54,20 +72,32 @@ const categoryNames = computed(
   () => new Map((categoriesQuery.data.value ?? []).map((item) => [item.code, item.name])),
 )
 const feed = useInfiniteQuery({
-  queryKey: ['events', 'feed', category, query],
+  queryKey: ['events', 'feed', filters],
+  enabled: computed(() => !dateError.value && view.value === 'list'),
   queryFn: ({ pageParam, signal }) =>
-    fetchFeedPage(
-      { category: category.value, query: query.value },
-      pageParam,
-      startsFrom.value,
-      signal,
-    ),
+    fetchFeedPage(filters.value, pageParam, startsFrom.value, signal),
   initialPageParam: 0,
   getNextPageParam: (last) => {
     const next = last.offset + last.limit
     return next < last.total ? next : undefined
   },
 })
+const mapQuery = useQuery({
+  queryKey: ['events', 'feed-map', filters],
+  enabled: computed(() => !dateError.value && view.value === 'map'),
+  queryFn: ({ signal }) => fetchFeedMap(filters.value, startsFrom.value, signal),
+})
+const mapEvents = computed(() =>
+  (mapQuery.data.value ?? []).filter((event) => Date.parse(event.startsAt) > now.value.getTime()),
+)
+function resetFilters() {
+  search.value = ''
+  query.value = ''
+  category.value = null
+  dateFrom.value = ''
+  dateTo.value = ''
+  hasFreePlaces.value = false
+}
 const events = computed(() =>
   (feed.data.value?.pages.flatMap((page) => page.items) ?? []).filter(
     (event) => isVisibleInFeed(event) && Date.parse(event.startsAt) > now.value.getTime(),
@@ -132,69 +162,115 @@ function run(event: EventDto) {
     </div>
     <div class="search-panel">
       <AppField v-model="search" class="search" label="Поиск по названию" type="search" />
+      <div class="date-filters">
+        <div>
+          <span class="filter-label">С даты</span
+          ><CalendarPicker v-model="dateFrom" label="С даты" :min="localDate(now)" />
+        </div>
+        <div>
+          <span class="filter-label">По дату включительно</span
+          ><CalendarPicker
+            v-model="dateTo"
+            label="По дату включительно"
+            :min="dateFrom || localDate(now)"
+          />
+        </div>
+        <label class="free-filter"
+          ><input v-model="hasFreePlaces" type="checkbox" /> Только со свободными местами</label
+        >
+        <AppButton variant="secondary" @click="resetFilters">Сбросить фильтры</AppButton>
+      </div>
+      <div class="view-switch" aria-label="Вид событий">
+        <AppChip :active="view === 'list'" :aria-pressed="view === 'list'" @click="view = 'list'"
+          >Список</AppChip
+        ><AppChip :active="view === 'map'" :aria-pressed="view === 'map'" @click="view = 'map'"
+          >Карта</AppChip
+        >
+      </div>
     </div>
-    <p v-if="actionError" class="error" role="alert">{{ actionError }}</p>
-    <p v-if="feed.isPending.value" class="state"><LoadingText label="Загружаем события" /></p>
-    <div v-else-if="feed.isError.value && !feed.data.value" class="state">
-      <p>Не удалось загрузить события.</p>
-      <AppButton variant="secondary" @click="feed.refetch()">Повторить</AppButton>
-    </div>
+    <p v-if="dateError" class="error" role="alert">{{ dateError }}</p>
+    <template v-else-if="view === 'map'">
+      <p v-if="mapQuery.isPending.value" class="state">
+        <LoadingText label="Загружаем события на карте" />
+      </p>
+      <div v-else-if="mapQuery.isError.value" class="state">
+        <p>Не удалось загрузить события.</p>
+        <AppButton size="sm" variant="secondary" @click="mapQuery.refetch()">Повторить</AppButton>
+      </div>
+      <EventMap v-else :points="mapEvents" @select="router.push(`/events/${$event}`)" />
+    </template>
     <template v-else>
-      <p v-if="events.length === 0" class="state">Событий не найдено.</p>
-      <div class="grid">
-        <EventCard
-          v-for="(event, i) in events"
-          :key="event.id"
-          :to="`/events/${event.id}`"
-          :title="event.title"
-          :state="stateLabel(event.state)"
-          :meta="metaLine(event, categoryNames.get(event.category) ?? event.category)"
-          :place="`${event.location} · ${participantsLine(event)}`"
-          :pink="i % 2 === 1"
-        >
-          <div
-            v-if="confirmingId === event.id"
-            class="confirm"
-            role="group"
-            aria-label="Подтверждение отмены события"
-            @keydown.esc="confirmingId = null"
+      <p v-if="actionError" class="error" role="alert">{{ actionError }}</p>
+      <p v-if="feed.isPending.value" class="state"><LoadingText label="Загружаем события" /></p>
+      <div v-else-if="feed.isError.value && !feed.data.value" class="state">
+        <p>Не удалось загрузить события.</p>
+        <AppButton size="sm" variant="secondary" @click="feed.refetch()">Повторить</AppButton>
+      </div>
+      <template v-else>
+        <p v-if="events.length === 0" class="state">
+          {{
+            feed.hasNextPage.value
+              ? 'На загруженной странице нет подходящих событий. Можно загрузить следующие.'
+              : 'Событий не найдено.'
+          }}
+        </p>
+        <div class="grid">
+          <EventCard
+            v-for="(event, i) in events"
+            :key="event.id"
+            :to="`/events/${event.id}`"
+            :title="event.title"
+            :state="stateLabel(event.state)"
+            :meta="metaLine(event, categoryNames.get(event.category) ?? event.category)"
+            :place="`${event.location} · ${participantsLine(event)}`"
+            :pink="i % 2 === 1"
+            :organizer="event.organizer"
+            :icon="event.icon"
           >
-            <p>Отменить событие? Участники получат уведомление.</p>
-            <div class="confirm-actions">
-              <AppButton
-                :disabled="busy || cardAction(event, now).kind !== 'cancel'"
-                @click="cancel.mutate(event.id)"
-                >Да, отменить</AppButton
-              >
-              <AppButton variant="secondary" :disabled="busy" @click="confirmingId = null"
-                >Нет</AppButton
-              >
+            <div
+              v-if="confirmingId === event.id"
+              class="confirm"
+              role="group"
+              aria-label="Подтверждение отмены события"
+              @keydown.esc="confirmingId = null"
+            >
+              <p>Отменить событие? Это действие нельзя отменить.</p>
+              <div class="confirm-actions">
+                <AppButton
+                  :disabled="busy || cardAction(event, now).kind !== 'cancel'"
+                  @click="cancel.mutate(event.id)"
+                  >Да, отменить</AppButton
+                >
+                <AppButton variant="secondary" :disabled="busy" @click="confirmingId = null"
+                  >Нет</AppButton
+                >
+              </div>
             </div>
-          </div>
+            <AppButton
+              v-else
+              class="join-button"
+              block
+              :variant="cardAction(event, now).kind === 'join' ? 'primary' : 'secondary'"
+              :disabled="busy || cardAction(event, now).kind === 'unavailable'"
+              @click="run(event)"
+              >{{ cardAction(event, now).label }}</AppButton
+            >
+          </EventCard>
+        </div>
+        <div v-if="feed.isFetchNextPageError.value" class="error" role="alert">
+          Не удалось загрузить следующую страницу.
+        </div>
+        <div v-if="feed.hasNextPage.value" class="more">
           <AppButton
-            v-else
-            class="join-button"
-            block
-            :variant="cardAction(event, now).kind === 'join' ? 'primary' : 'secondary'"
-            :disabled="busy || cardAction(event, now).kind === 'unavailable'"
-            @click="run(event)"
-            >{{ cardAction(event, now).label }}</AppButton
+            variant="secondary"
+            :disabled="feed.isFetchingNextPage.value"
+            @click="feed.fetchNextPage()"
+            ><LoadingText v-if="feed.isFetchingNextPage.value" label="Загружаем" /><template v-else
+              >Показать ещё</template
+            ></AppButton
           >
-        </EventCard>
-      </div>
-      <div v-if="feed.isFetchNextPageError.value" class="error" role="alert">
-        Не удалось загрузить следующую страницу.
-      </div>
-      <div v-if="feed.hasNextPage.value" class="more">
-        <AppButton
-          variant="secondary"
-          :disabled="feed.isFetchingNextPage.value"
-          @click="feed.fetchNextPage()"
-          ><LoadingText v-if="feed.isFetchingNextPage.value" label="Загружаем" /><template v-else
-            >Показать ещё</template
-          ></AppButton
-        >
-      </div>
+        </div>
+      </template>
     </template>
   </section>
 </template>
@@ -218,6 +294,36 @@ function run(event: EventDto) {
 }
 .search-panel {
   margin-bottom: 36px;
+}
+.date-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 16px;
+  margin-top: 18px;
+  max-width: 760px;
+}
+.filter-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 7px;
+}
+.free-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.free-filter input {
+  accent-color: #a63872;
+  width: 18px;
+  height: 18px;
+}
+.view-switch {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
 }
 .hint {
   font-size: 12px;
@@ -257,6 +363,9 @@ function run(event: EventDto) {
   margin-top: 10px;
 }
 @media (max-width: 700px) {
+  .date-filters {
+    grid-template-columns: 1fr;
+  }
   .heading {
     display: block;
     margin-bottom: 18px;
