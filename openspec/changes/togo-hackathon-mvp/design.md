@@ -30,7 +30,7 @@ https://docs.google.com/document/d/19rsIFeIvy4lMbOKaGxInJH8MMWmOxSxdXBwLJBqDgPc.
 
 - Горизонтальное масштабирование и кэширование. Из фоновой обработки нужен только переход состояний событий по срокам.
 - Доступность и локализация сверх русского текста интерфейса.
-- Инструменты администратора: справочник категорий меняется через миграции.
+- Инструменты администратора: перечень категорий меняется только вместе с контрактом и кодом.
 
 ## Decisions
 
@@ -49,8 +49,8 @@ https://docs.google.com/document/d/19rsIFeIvy4lMbOKaGxInJH8MMWmOxSxdXBwLJBqDgPc.
 | `POST /api/v1/auth/telegram`                                                     | [Auth] вход по initData                        |
 | `GET /api/v1/users/me`, + `PUT /api/v1/users/me`                                 | [Users] свой профиль                           |
 | + `GET /api/v1/users/{userId}`                                                   | [Users] чужой профиль                          |
-| `GET /api/v1/categories`                                                         | [Categories] справочник                        |
-| `GET /api/v1/events?query=&categoryId=&startsFrom=&startsTo=&state=&participating=&limit=&offset=`, + `hasFreePlaces=` | [Events] лента, фильтры, «мои события» |
+| `GET /api/v1/categories`                                                         | [Categories] перечень категорий                |
+| `GET /api/v1/events?query=&category=&startsFrom=&startsTo=&state=&participating=&limit=&offset=`, + `hasFreePlaces=` | [Events] лента, фильтры, «мои события» |
 | `POST /api/v1/events`, `GET /api/v1/events/{eventId}`, `PATCH /api/v1/events/{eventId}` | [Events] создание, карточка, изменение  |
 | `POST /api/v1/events/{eventId}/cancel`                                           | [Events] отмена организатором                  |
 | `GET /api/v1/events/{eventId}/participants`                                      | [Events] список участников                     |
@@ -60,7 +60,7 @@ https://docs.google.com/document/d/19rsIFeIvy4lMbOKaGxInJH8MMWmOxSxdXBwLJBqDgPc.
 Добавления схем:
 
 - `CurrentUser` получает `name`, `photoUrl` (nullable), `city` (nullable) и `categories`; новые `UserProfile`
-  (без `tgId`) и `UpdateProfileRequest` с `name`, `city` и `categoryIds`.
+  (без `tgId`) и `UpdateProfileRequest` с `name`, `city` и `categories`.
 - `Event` и `CreateEventRequest` получают nullable `latitude` и `longitude`; в `PATCH` их нет, как и `location`.
 - `CreateEventRequest` и `UpdateEventRequest`: `maxLength: 100` у `title`, `maxLength: 2000` у `description`,
   `maximum: 50` у `minUsers` и `maxUsers`.
@@ -69,13 +69,22 @@ https://docs.google.com/document/d/19rsIFeIvy4lMbOKaGxInJH8MMWmOxSxdXBwLJBqDgPc.
 - `CurrentUser` и `UserProfile` получают `createdEventsCount` и `visitedEventsCount`; `ApiError.code` получает
   `SCHEDULE_CONFLICT`.
 
-Единственное исключение из правила добавлений согласовано по аналитике и вносится до появления клиентов, которые
-от него зависят: `description` в `CreateEventRequest` становится обязательным, в `CreateEventRequest`
-и `UpdateEventRequest` получает `maxLength: 500` и `minLength: 1`, а `categoryIds` — `maxItems: 1`. Массив
-`categoryIds` сохраняется, чтобы несколько категорий можно было вернуть без смены формы контракта.
+Единственное исключение из правила добавлений согласовано по аналитике и ревью и вносится до появления клиентов,
+которые от него зависят:
+
+- `description` в `CreateEventRequest` становится обязательным, в `CreateEventRequest` и `UpdateEventRequest`
+  получает `maxLength: 500` и `minLength: 1`.
+- Категория становится перечнем `EventCategory` со значениями `PICNIC` («Пикник»), `RUN` («Пробежка»), `EXCURSION`
+  («Поход на экскурсию»), `BOARD_GAMES` («Настолки»), `QUEST` («Квест»), `CINEMA` («Кино») и `CAFE`
+  («Кафе/Ресторан»). У события одно поле `category`: обязательное в `CreateEventRequest`, необязательное
+  в `UpdateEventRequest`, всегда заполненное в `Event`; оно заменяет `categoryIds` и массив категорий события.
+  Фильтр ленты `category` заменяет `categoryId`. В профиле `categories` и в `UpdateProfileRequest` — набор значений
+  перечня без повторов. `GET /api/v1/categories` отдаёт пары `code` и `name` в порядке объявления перечня.
+- Неизвестное значение категории отклоняется как 400 VALIDATION_ERROR; код `CATEGORY_NOT_FOUND` удаляется
+  из `ApiError.code`.
 
 Ошибки возвращаются в формате `ApiError { code, message, details }` из контракта, а не problem details:
-400 VALIDATION_ERROR или CATEGORY_NOT_FOUND с полями в `details`, 401 UNAUTHORIZED с `WWW-Authenticate: Bearer`,
+400 VALIDATION_ERROR с полями в `details`, 401 UNAUTHORIZED с `WWW-Authenticate: Bearer`,
 403 FORBIDDEN, 404 EVENT_NOT_FOUND или USER_NOT_FOUND, 409 с кодом нарушенного правила, включая SCHEDULE_CONFLICT, 500 INTERNAL_ERROR без
 внутренних деталей. Неизвестные поля запроса отклоняются с 400 VALIDATION_ERROR.
 
@@ -196,22 +205,20 @@ Mini App внутри Telegram по этому адресу. До появлен
 ### 7. Модель данных
 
 Миграция `V1__base_structure.sql` уже есть и могла быть применена локально, поэтому её не правят: изменения вносит
-новая миграция `V2`. Уточнения по аналитике вносит миграция `V3`: она заменяет справочник категорий семью
-категориями «Пикник», «Пробежка», «Поход на экскурсию», «Настолки», «Квест», «Кино» и «Кафе/Ресторан», делает
-`events.description` обязательным от 1 до 500 символов и создаёт `notifications`. Локальные базы с тестовыми событиями
-на прежних категориях пересоздаются.
+новая миграция `V2`. Уточнения по аналитике и ревью вносит миграция `V3`: она удаляет таблицы `categories`
+и `event_categories`, добавляет `events.category`, пересоздаёт `user_categories` со значением перечня вместо ссылки,
+делает `events.description` обязательным от 1 до 500 символов и создаёт `notifications`. Значения категорий
+хранятся строками кодов перечня и ограничены CHECK. Локальные базы с тестовыми событиями пересоздаются.
 
 ```
 users(id uuid, tg_id bigint unique, tg_login null,
       + name, + photo_url null, + city null, + created_at)
-categories(id uuid, name unique)                      -- заполняется миграцией
-+ user_categories(user_id, category_id)               -- первичный ключ по обоим полям
++ user_categories(user_id, category)                  -- первичный ключ по обоим полям, category из перечня
 events(id uuid, title, description, location, icon null,
        starts_at timestamptz, ends_at timestamptz, registration_closes_at timestamptz,
-       state, min_users, max_users, organizer_id,
+       state, min_users, max_users, organizer_id, + category,
        + participants_count, + latitude null, + longitude null, + created_at)
 event_users(id, event_id, user_id, + joined_at)       -- unique (event_id, user_id)
-event_categories(id, event_id, category_id)           -- unique (event_id, category_id)
 + comments(id uuid, event_id, author_id, text, created_at)
 + notifications(id uuid, user_id, event_id, kind, due_at, sent_at null, attempts)  -- unique (user_id, event_id, kind)
 ```
@@ -224,14 +231,14 @@ event_categories(id, event_id, category_id)           -- unique (event_id, categ
 `registration_closes_at <= starts_at < ends_at`, `state` ограничен пятью значениями из решения 5, длина
 `title` до 100, `description` от 1 до 500, `comments.text` от 1 до 1000 символов. Проверка `registrationClosesAt > now`
 выполняется сервисом при создании и изменении срока, а не динамическим CHECK. Индексы: `events(starts_at)`,
-`events(organizer_id)`, `event_users(user_id)`, `event_categories(category_id)`,
+`events(organizer_id)`, `event_users(user_id)`, `events(category)`,
 `events(registration_closes_at) WHERE state = 'recruiting'`, `events(ends_at) WHERE state = 'registration_closed'`,
 `comments(event_id, created_at)`, `notifications(due_at) WHERE sent_at IS NULL`.
 
 ### 8. Запрос ленты
 
 Один запрос репозитория, который собирается через JPA `Specification` из необязательных фильтров контракта:
-`query` (`lower(title) LIKE`), `categoryId` (через `event_categories`), `startsFrom` включительно, `startsTo`
+`query` (`lower(title) LIKE`), `category` (равенство `events.category`), `startsFrom` включительно, `startsTo`
 исключительно, `state`, `participating` (через `event_users` текущего пользователя) и `hasFreePlaces`
 (`state = 'recruiting'`, `registration_closes_at > now`, `participants_count < max_users`). Фильтр по состоянию
 применяется к актуальному состоянию: перед выборкой сервис актуализирует события с наступившими сроками по
