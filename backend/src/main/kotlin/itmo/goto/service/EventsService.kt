@@ -18,8 +18,11 @@ import java.util.UUID
  * Serves the Events part of the contract by handing each operation to the class responsible for it.
  */
 @Service
-class EventsService(private val creation: Creation, private val delegateService: EventDelegateService) :
-    EventsApiService {
+class EventsService(
+    private val creation: EventCreationService,
+    private val delegateService: EventDelegateService,
+    private val participation: EventParticipationService,
+) : EventsApiService {
     override fun createEvent(createEventRequest: CreateEventRequest): Event = creation.event(createEventRequest)
 
     override fun getEvents(
@@ -43,11 +46,9 @@ class EventsService(private val creation: Creation, private val delegateService:
     override fun cancelEvent(eventId: UUID): Event = delegateService.cancel(eventId)
 
     override fun getEventParticipants(eventId: UUID, limit: Int, offset: Int): ParticipantPage =
-        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Participant listing is not implemented yet")
+        participation.participants(eventId, limit, offset)
 
-    override fun joinEvent(eventId: UUID): Event =
-        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Joining an event is not implemented yet")
+    override fun joinEvent(eventId: UUID): Event = participation.join(eventId)
 
-    override fun leaveEvent(eventId: UUID): Unit =
-        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Leaving an event is not implemented yet")
+    override fun leaveEvent(eventId: UUID): Unit = participation.leave(eventId)
 }
