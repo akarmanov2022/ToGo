@@ -1,33 +1,74 @@
 package itmo.goto.service
 
+import itmo.goto.PostgresConfiguration
+import itmo.goto.Rows
+import itmo.goto.auth.Identity
+import itmo.goto.generated.model.ApiError
 import itmo.goto.generated.model.UpdateProfileRequest
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.assertj.core.api.Assertions.catchThrowableOfType
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
+import org.springframework.context.annotation.Import
 import org.springframework.http.HttpStatus
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.test.context.bean.override.convention.TestBean
 import org.springframework.web.server.ResponseStatusException
 import java.util.UUID
 import kotlin.random.Random
 
-class UsersServiceTest {
+@DataJpaTest(showSql = false)
+@Import(PostgresConfiguration::class, UsersService::class)
+class UsersServiceTest(@Autowired private val service: UsersService, @Autowired private val jdbc: JdbcTemplate) {
+    @TestBean
+    private lateinit var identity: Identity
+
     @Test
-    fun `current user answers not implemented`() {
-        assertThat(
-            catchThrowableOfType(ResponseStatusException::class.java) {
-                UsersService().getCurrentUser()
-            }?.statusCode,
+    fun `current user is the token holder`() {
+        val tg = Random.nextLong(1, 10_000_000_000)
+        Rows(jdbc).user(holder, tg, "user${Random.nextInt()}")
+        assertThat(service.getCurrentUser().tgId)
+            .withFailMessage("Current user isnt the token holder")
+            .isEqualTo(tg)
+    }
+
+    @Test
+    fun `current user without username has no login`() {
+        Rows(jdbc).user(holder, Random.nextLong(1, 10_000_000_000), null)
+        assertThat(service.getCurrentUser().tgLogin)
+            .withFailMessage("Current user without a username has a login")
+            .isNull()
+    }
+
+    @Test
+    fun `current user lists chosen categories`() {
+        Rows(jdbc).user(holder, Random.nextLong(1, 10_000_000_000), null)
+        val category = jdbc.queryForList("SELECT name FROM categories", String::class.java).random()
+        jdbc.update(
+            "INSERT INTO user_categories (user_id, category_id) SELECT ?, id FROM categories WHERE name = ?",
+            holder,
+            category,
         )
-            .withFailMessage("Current user doesnt answer 501")
-            .isEqualTo(HttpStatus.NOT_IMPLEMENTED)
+        assertThat(service.getCurrentUser().categories.map { it.name })
+            .withFailMessage("Current user doesnt list the chosen categories")
+            .containsExactly(category)
+    }
+
+    @Test
+    fun `unknown token holder answers unauthorized`() {
+        assertThatThrownBy { service.getCurrentUser() }
+            .extracting("code")
+            .withFailMessage("Unknown token holder doesnt answer UNAUTHORIZED")
+            .isEqualTo(ApiError.Code.UNAUTHORIZED)
     }
 
     @Test
     fun `profile update answers not implemented`() {
         assertThat(
             catchThrowableOfType(ResponseStatusException::class.java) {
-                UsersService().updateCurrentUser(
-                    UpdateProfileRequest("Имя ${Random.nextInt()}", setOf(UUID.randomUUID())),
-                )
+                service.updateCurrentUser(UpdateProfileRequest("Имя ${Random.nextInt()}", setOf(UUID.randomUUID())))
             }?.statusCode,
         )
             .withFailMessage("Profile update doesnt answer 501")
@@ -38,10 +79,17 @@ class UsersServiceTest {
     fun `other profile answers not implemented`() {
         assertThat(
             catchThrowableOfType(ResponseStatusException::class.java) {
-                UsersService().getUser(UUID.randomUUID())
+                service.getUser(UUID.randomUUID())
             }?.statusCode,
         )
             .withFailMessage("Other profile doesnt answer 501")
             .isEqualTo(HttpStatus.NOT_IMPLEMENTED)
+    }
+
+    companion object {
+        private val holder = UUID.randomUUID()
+
+        @JvmStatic
+        fun identity(): Identity = Identity { holder }
     }
 }
