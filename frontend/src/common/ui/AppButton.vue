@@ -1,12 +1,37 @@
 <script setup lang="ts">
-withDefaults(defineProps<{ to?: string; variant?: 'primary' | 'secondary'; block?: boolean }>(), {
-  to: undefined,
-  variant: 'primary',
-})
+withDefaults(
+  defineProps<{
+    to?: string
+    variant?: 'primary' | 'secondary'
+    block?: boolean
+    type?: 'button' | 'submit' | 'reset'
+    disabled?: boolean
+  }>(),
+  {
+    to: undefined,
+    variant: 'primary',
+    type: 'button',
+    disabled: false,
+  },
+)
 </script>
 <template>
-  <RouterLink v-if="to" :to="to" :class="['button', variant, { block }]"><slot /></RouterLink>
-  <button v-else type="button" :class="['button', variant, { block }]"><slot /></button>
+  <RouterLink
+    v-if="to"
+    :to="to"
+    :class="['button', variant, { block, disabled }]"
+    :aria-disabled="disabled || undefined"
+  >
+    <slot />
+  </RouterLink>
+  <button
+    v-else
+    :type="type"
+    :disabled="disabled"
+    :class="['button', variant, { block }]"
+  >
+    <slot />
+  </button>
 </template>
 <style scoped>
 .button {
@@ -28,7 +53,9 @@ withDefaults(defineProps<{ to?: string; variant?: 'primary' | 'secondary'; block
 .block {
   width: 100%;
 }
-.button:disabled {
+.button:disabled,
+.button.disabled {
   opacity: 0.72;
+  pointer-events: none;
 }
 </style>

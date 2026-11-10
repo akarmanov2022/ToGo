@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import AppButton from '@/common/ui/AppButton.vue'
+
+defineProps<{ showCreate: boolean }>()
 </script>
 <template>
   <header class="header">
@@ -9,7 +11,7 @@ import AppButton from '@/common/ui/AppButton.vue'
         <RouterLink to="/">События</RouterLink>
         <RouterLink to="/profile">Профиль</RouterLink>
       </nav>
-      <AppButton class="create" to="/create">+ Создать событие</AppButton>
+      <AppButton v-if="showCreate" class="create" to="/create">+ Создать событие</AppButton>
       <RouterLink class="avatar" to="/profile" aria-label="Профиль">С</RouterLink>
     </div>
   </header>

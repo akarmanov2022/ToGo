@@ -74,7 +74,18 @@ onBeforeUnmount(() => {
       Не удалось загрузить карту. Можно продолжить без точки.
     </p>
     <div class="location-picker__summary" role="status">
-      <span class="location-picker__icon" aria-hidden="true">⌖</span>
+      <span class="location-picker__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true">
+          <path
+            d="M12 22s7-7.2 7-12.2A7 7 0 0 0 5 9.8C5 14.8 12 22 12 22Z"
+            fill="#f58cba"
+            stroke="#292657"
+            stroke-width="1.6"
+            stroke-linejoin="round"
+          />
+          <circle cx="12" cy="9.5" r="2.4" fill="#292657" />
+        </svg>
+      </span>
       <div>
         <strong>{{ address.trim() || 'Укажите адрес встречи' }}</strong>
         <p v-if="modelValue">

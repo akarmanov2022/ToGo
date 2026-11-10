@@ -1,13 +1,25 @@
 <script setup lang="ts">
 import AppCard from '@/common/ui/AppCard.vue'
 
-defineProps<{ title: string; meta: string; place: string; pink?: boolean; accent?: boolean }>()
+defineProps<{
+  title: string
+  meta: string
+  place: string
+  pink?: boolean
+  accent?: boolean
+  to?: string
+  state?: string
+}>()
 </script>
 <template>
   <AppCard as="article" :accent="accent" class="event-card">
+    <RouterLink v-if="to" class="hit" :to="to" :aria-label="title" />
     <div :class="['icon', { pink }]" />
     <div class="info">
-      <h2>{{ title }}</h2>
+      <div class="title-row">
+        <h2>{{ title }}</h2>
+        <span v-if="state" class="state">{{ state }}</span>
+      </div>
       <p>{{ meta }}</p>
       <p>{{ place }}</p>
     </div>
@@ -16,9 +28,16 @@ defineProps<{ title: string; meta: string; place: string; pink?: boolean; accent
 </template>
 <style scoped>
 .event-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+.hit {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
 }
 .icon {
   width: 44px;
@@ -33,9 +52,21 @@ defineProps<{ title: string; meta: string; place: string; pink?: boolean; accent
 .info {
   flex: 1;
 }
+.title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 3px;
+}
 h2 {
   font-size: 16px;
-  margin-bottom: 3px;
+}
+.state {
+  flex: none;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--color-text-subtle);
 }
 p {
   font-size: 12px;
@@ -43,6 +74,8 @@ p {
   margin-top: 3px;
 }
 .action {
+  position: relative;
+  z-index: 2;
   margin-top: 8px;
 }
 @media (max-width: 700px) {

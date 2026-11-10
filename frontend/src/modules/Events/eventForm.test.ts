@@ -1,18 +1,25 @@
 import { describe, expect, it } from 'vitest'
-import { combineDateTime, validateEventForm, type EventFormValues } from './eventForm'
+import {
+  addCalendarMonths,
+  combineDateTime,
+  hasRequiredGaps,
+  validateEventForm,
+  type EventFormValues,
+} from './eventForm'
 
 const now = new Date('2026-11-10T12:00:00Z')
 
 const valid: EventFormValues = {
   title: 'Вечер настолок',
-  description: '',
+  description: 'Играем в Каркассон',
   location: 'Кафе на Центральной улице, 10',
-  categoryIds: ['category-1'],
+  category: 'BOARD_GAMES',
   startsAt: '2026-11-11T18:00:00Z',
   endsAt: '2026-11-11T21:00:00Z',
   registrationClosesAt: '2026-11-11T15:00:00Z',
   minUsers: 3,
   maxUsers: 6,
+  icon: '',
 }
 
 describe('validateEventForm', () => {
@@ -34,16 +41,17 @@ describe('validateEventForm', () => {
     expect(validateEventForm({ ...valid, title: 'а'.repeat(101) }, now).title).toBeDefined()
   })
 
-  it('отклоняет слишком длинное описание', () => {
+  it('требует описание и отклоняет слишком длинное', () => {
+    expect(validateEventForm({ ...valid, description: '   ' }, now).description).toBeDefined()
     expect(
-      validateEventForm({ ...valid, description: 'а'.repeat(2001) }, now).description,
+      validateEventForm({ ...valid, description: 'а'.repeat(501) }, now).description,
     ).toBeDefined()
   })
 
-  it('отклоняет пустое место и отсутствие категорий', () => {
-    const errors = validateEventForm({ ...valid, location: ' ', categoryIds: [] }, now)
+  it('отклоняет пустое место и отсутствие категории', () => {
+    const errors = validateEventForm({ ...valid, location: ' ', category: '' }, now)
     expect(errors.location).toBeDefined()
-    expect(errors.categoryIds).toBeDefined()
+    expect(errors.category).toBeDefined()
   })
 
   it('отклоняет срок регистрации в прошлом и ровно сейчас', () => {
@@ -72,11 +80,35 @@ describe('validateEventForm', () => {
     expect(errors.registrationClosesAt).toBeDefined()
   })
 
+  it('отклоняет начало дальше одного календарного месяца', () => {
+    const tooFar = addCalendarMonths(now, 1)
+    tooFar.setMinutes(tooFar.getMinutes() + 1)
+    expect(validateEventForm({ ...valid, startsAt: tooFar.toISOString() }, now).startsAt).toBeDefined()
+  })
+
   it('проверяет лимиты участников', () => {
     expect(validateEventForm({ ...valid, minUsers: 0 }, now).minUsers).toBeDefined()
     expect(validateEventForm({ ...valid, minUsers: 5, maxUsers: 3 }, now).minUsers).toBeDefined()
     expect(validateEventForm({ ...valid, maxUsers: 51 }, now).maxUsers).toBeDefined()
     expect(validateEventForm({ ...valid, minUsers: 2.5 }, now).minUsers).toBeDefined()
+  })
+
+  it('принимает пустую иконку и один эмодзи', () => {
+    expect(validateEventForm({ ...valid, icon: '' }, now).icon).toBeUndefined()
+    expect(validateEventForm({ ...valid, icon: '🎲' }, now).icon).toBeUndefined()
+    expect(validateEventForm({ ...valid, icon: '👨‍👩‍👧' }, now).icon).toBeUndefined()
+  })
+
+  it('отклоняет иконку не из одного эмодзи', () => {
+    expect(validateEventForm({ ...valid, icon: 'abc' }, now).icon).toBe(
+      'Укажите один эмодзи или оставьте пустым',
+    )
+    expect(validateEventForm({ ...valid, icon: '🎲🎲' }, now).icon).toBeDefined()
+    expect(validateEventForm({ ...valid, icon: 'a🎲' }, now).icon).toBeDefined()
+  })
+
+  it('помечает незаполненные обязательные поля для красного сообщения', () => {
+    expect(hasRequiredGaps(validateEventForm({ ...valid, title: '' }, now))).toBe(true)
   })
 })
 

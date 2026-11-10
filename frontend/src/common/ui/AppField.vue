@@ -14,7 +14,7 @@ const model = defineModel<string | number>()
   display: flex;
   flex-direction: column;
   gap: 7px;
-  flex: 1;
+  min-width: 0;
 }
 .label {
   font-size: 12px;
@@ -28,5 +28,6 @@ input {
   padding: 0 12px;
   color: #252857;
   background: var(--color-surface);
+  line-height: 1.2;
 }
 </style>
