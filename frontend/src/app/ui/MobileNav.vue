@@ -7,15 +7,6 @@
       </svg>
       События
     </RouterLink>
-    <span class="disabled" aria-disabled="true">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <circle cx="9" cy="8" r="3.5" />
-        <path
-          d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6M16 4.5a3.5 3.5 0 010 7M18 14.5c2.2.6 3.5 2.6 3.5 5.5"
-        />
-      </svg>
-      Друзья
-    </span>
     <RouterLink to="/profile">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="12" cy="8" r="4" />
@@ -45,8 +36,7 @@
     font-weight: 800;
     color: var(--color-text-subtle);
   }
-  .nav a,
-  .disabled {
+  .nav a {
     display: flex;
     align-items: center;
     flex-direction: column;
@@ -54,9 +44,6 @@
   }
   .nav a.router-link-exact-active {
     color: var(--color-text);
-  }
-  .disabled {
-    color: #aaa4b5;
   }
   svg {
     width: 24px;
