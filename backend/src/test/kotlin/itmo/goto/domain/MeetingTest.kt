@@ -423,6 +423,32 @@ class MeetingTest {
     }
 
     @Test
+    fun `organizer keeping a passed deadline is refused for closed registration`() {
+        val closes = moment()
+        assertThat(
+            refusal(
+                Meeting(schedule(closes), Limits(1, 10), 3, State.RECRUITING)
+                    .change(Role.ORGANIZER, Limits(1, 10), closes, closes.plusSeconds(Random.nextLong(0, 7200))),
+            ),
+        )
+            .withFailMessage("Organizer keeping a passed deadline isnt refused for closed registration")
+            .isEqualTo(Refusal.REGISTRATION_CLOSED)
+    }
+
+    @Test
+    fun `organizer keeping a passed deadline of a cancelled meeting is refused for its state`() {
+        val closes = moment()
+        assertThat(
+            refusal(
+                Meeting(schedule(closes), Limits(1, 10), 3, State.CANCELLED_BY_ORGANIZER)
+                    .change(Role.ORGANIZER, Limits(1, 10), closes, closes.plusSeconds(Random.nextLong(0, 7200))),
+            ),
+        )
+            .withFailMessage("Organizer keeping a passed deadline of a cancelled meeting isnt refused for its state")
+            .isEqualTo(Refusal.INVALID_EVENT_STATE)
+    }
+
+    @Test
     fun `organizer cannot change a cancelled meeting`() {
         val closes = moment()
         assertThat(

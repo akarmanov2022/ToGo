@@ -1,10 +1,11 @@
 build:
   maxIssues: 0
+complexity:
+  LongParameterList:
+    ignoreAnnotated: [ 'Entity' ]
 performance:
   SpreadOperator:
-    # Spring Boot's runApplication takes launch arguments as a vararg, so main spreads them once at startup.
     excludes: ['**/GotoApplication.kt']
 style:
   UnusedPrivateProperty:
-    # Tests declare @MockitoBean and @TestBean fields only to replace beans in the Spring context, so nothing reads them.
-    ignoreAnnotated: ['MockitoBean', 'TestBean']
+    ignoreAnnotated: [ 'MockitoBean', 'TestBean', 'JsonSetter' ]

@@ -2,6 +2,8 @@ package itmo.goto
 
 import itmo.goto.generated.model.EventCategory
 import org.springframework.jdbc.core.JdbcTemplate
+import java.time.Duration
+import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.UUID
@@ -57,6 +59,16 @@ class Rows(private val jdbc: JdbcTemplate) {
 
     fun event(organizer: UUID, state: String): UUID = event().also {
         jdbc.update("UPDATE events SET organizer_id = ?, state = ? WHERE id = ?", organizer, state, it)
+    }
+
+    fun organized(organizer: UUID, state: String, closes: Instant, starts: Instant): UUID = event(
+        closes.atOffset(ZoneOffset.UTC),
+        starts.atOffset(ZoneOffset.UTC),
+        starts.plus(Duration.ofHours(3)).atOffset(ZoneOffset.UTC),
+        50,
+    ).also {
+        jdbc.update("UPDATE events SET organizer_id = ?, state = ? WHERE id = ?", organizer, state, it)
+        participant(it, organizer)
     }
 
     fun participant(event: UUID, user: UUID): UUID = jdbc.queryForObject(

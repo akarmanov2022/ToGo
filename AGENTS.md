@@ -70,8 +70,9 @@ build domain objects, call the rules, and persist the result.
   requires.
 - `Agenda` holds the caller's other meetings and finds a schedule conflict when one in `RECRUITING` or
   `REGISTRATION_CLOSED` starts less than three hours away; joining and creating both check it.
-- Field rules return `Violation` lists for 400 responses: `Limits.violations()` and `Schedule.violations(now)`. `change`
-  requires both to be empty and throws otherwise, so services validate before calling it.
+- Field rules return `Violation` lists for 400 responses: `Limits.violations()`, `Schedule.violations(now)`, and
+  `Point.violations()`. `change` requires valid limits, and a valid deadline only once role and state allow the change,
+  so a change that keeps a passed deadline is refused rather than failing; services validate a new deadline first.
 - The domain has its own `State` and `Refusal` enums; services translate them to the generated `EventState` and
   `ApiError.Code`.
 Time always comes from the injected `java.time.Clock` bean (`ClockConfiguration`, UTC), so tests fix the clock instead of waiting.

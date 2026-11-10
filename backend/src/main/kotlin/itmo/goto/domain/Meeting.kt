@@ -83,20 +83,26 @@ class Meeting(
      * Позволяет организатору задать новые [limits] и новый срок регистрации [deadline], пока регистрация открыта,
      * если новый максимум вмещает текущих участников.
      *
-     * Лимиты и срок уже должны пройти [Limits.violations] и [Schedule.violations]; иначе изменение падает
-     * с [IllegalArgumentException], потому что это ошибки валидации, а не отказы.
+     * Лимиты уже должны пройти [Limits.violations], а срок открытой встречи — [Schedule.violations]; иначе изменение
+     * падает с [IllegalArgumentException], потому что это ошибки валидации, а не отказы. Срок проверяется только
+     * после роли и состояния, поэтому изменение с прежним, уже наступившим сроком получает отказ, а не падает.
      */
     fun change(role: Role, limits: Limits, deadline: Instant, now: Instant): Decision {
         require(limits.violations().isEmpty()) { "Meeting limits must pass their own checks before a change" }
-        require(schedule.moved(deadline).violations(now).isEmpty()) {
-            "Meeting deadline must pass its own checks before a change"
-        }
         return current(now).run {
             when {
                 role != Role.ORGANIZER -> Refused(this, Refusal.FORBIDDEN)
                 state != State.RECRUITING -> Refused(this, blocked())
-                !limits.holds(participants) -> Refused(this, Refusal.CAPACITY_BELOW_PARTICIPANTS)
-                else -> Accepted(Meeting(schedule.moved(deadline), limits, participants, state))
+                else -> {
+                    require(schedule.moved(deadline).violations(now).isEmpty()) {
+                        "Meeting deadline must pass its own checks before a change"
+                    }
+                    if (limits.holds(participants)) {
+                        Accepted(Meeting(schedule.moved(deadline), limits, participants, state))
+                    } else {
+                        Refused(this, Refusal.CAPACITY_BELOW_PARTICIPANTS)
+                    }
+                }
             }
         }
     }

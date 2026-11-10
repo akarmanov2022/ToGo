@@ -2,6 +2,7 @@ package itmo.goto.domain
 
 import java.time.Duration
 import java.time.Instant
+import java.time.ZoneOffset
 
 /**
  * Три момента встречи: срок регистрации от организатора, начало и окончание.
@@ -12,6 +13,9 @@ class Schedule(private val closes: Instant, private val starts: Instant, private
         Violation("registrationClosesAt", "Срок регистрации должен быть в будущем").takeIf { !closes.isAfter(now) },
         Violation("registrationClosesAt", "Срок регистрации не может быть позже начала").takeIf {
             closes.isAfter(starts)
+        },
+        Violation("startsAt", "Начало должно быть не позже чем через месяц").takeIf {
+            starts.isAfter(now.atOffset(ZoneOffset.UTC).plusMonths(1).toInstant())
         },
         Violation("endsAt", "Окончание должно быть позже начала").takeIf { !ends.isAfter(starts) },
     )

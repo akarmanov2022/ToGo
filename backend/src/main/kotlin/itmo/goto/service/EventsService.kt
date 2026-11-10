@@ -14,11 +14,13 @@ import org.springframework.web.server.ResponseStatusException
 import java.time.OffsetDateTime
 import java.util.UUID
 
-/** Business logic belongs here; this file is never overwritten by OpenAPI generation. */
+/**
+ * Serves the Events part of the contract by handing each operation to the class responsible for it.
+ */
 @Service
-class EventsService : EventsApiService {
-    override fun createEvent(createEventRequest: CreateEventRequest): Event =
-        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Event creation is not implemented yet")
+class EventsService(private val creation: Creation, private val delegateService: EventDelegateService) :
+    EventsApiService {
+    override fun createEvent(createEventRequest: CreateEventRequest): Event = creation.event(createEventRequest)
 
     override fun getEvents(
         query: String?,
@@ -36,10 +38,9 @@ class EventsService : EventsApiService {
         throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Event details are not implemented yet")
 
     override fun updateEvent(eventId: UUID, updateEventRequest: UpdateEventRequest): Event =
-        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Event update is not implemented yet")
+        delegateService.change(eventId, updateEventRequest)
 
-    override fun cancelEvent(eventId: UUID): Event =
-        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Event cancellation is not implemented yet")
+    override fun cancelEvent(eventId: UUID): Event = delegateService.cancel(eventId)
 
     override fun getEventParticipants(eventId: UUID, limit: Int, offset: Int): ParticipantPage =
         throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Participant listing is not implemented yet")
