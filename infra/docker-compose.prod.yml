@@ -1,0 +1,81 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: togodb
+    environment:
+      POSTGRES_USER: ${DB_USER:?Задайте DB_USER существующей базы}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Задайте DB_PASSWORD существующей базы}
+      POSTGRES_DB: togo
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    networks:
+      - database
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d togo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    image: kolzuk/togo-backend:${TOGO_RELEASE_SHA:?Задайте SHA релиза}
+    container_name: togo-backend
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?Задайте TELEGRAM_BOT_TOKEN}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:?Задайте TELEGRAM_WEBHOOK_SECRET}
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/togo
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:?Задайте DB_USER существующей базы}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:?Задайте DB_PASSWORD существующей базы}
+    networks:
+      - web
+      - database
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8080/actuator/health"]
+      start_period: 60s
+      interval: 5s
+      timeout: 5s
+      retries: 24
+    restart: unless-stopped
+
+  frontend:
+    image: kolzuk/togo-frontend:${TOGO_RELEASE_SHA:?Задайте SHA релиза}
+    container_name: togo-frontend
+    volumes:
+      - ./nginx/frontend:/etc/nginx/conf.d:ro
+    networks:
+      - web
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: togo-nginx
+    volumes:
+      - ./nginx/proxy:/etc/nginx/conf.d:ro
+      - type: bind
+        source: /etc/letsencrypt
+        target: /etc/letsencrypt
+        read_only: true
+        bind:
+          create_host_path: false
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - web
+    restart: unless-stopped
+
+networks:
+  web:
+  database:
+    internal: true
+
+volumes:
+  postgres_data:
+    external: true
+    name: ${TOGO_POSTGRES_VOLUME:?Укажите существующий том PostgreSQL}
