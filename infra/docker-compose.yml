@@ -19,9 +19,7 @@ services:
     restart: unless-stopped
 
   backend:
-    build:
-      context: ..
-      dockerfile: backend/Dockerfile
+    build: kolzuk/togo-backend:latest
     image: togo-backend:local
     container_name: togo-backend
     environment:
@@ -40,7 +38,7 @@ services:
 
   frontend:
     build:
-      context: ../frontend
+      context: kolzuk/togo-frontend:latest
       dockerfile: Dockerfile
       args:
         # Временно для dev-togo.ru: вход без Telegram в тестовый профиль.
