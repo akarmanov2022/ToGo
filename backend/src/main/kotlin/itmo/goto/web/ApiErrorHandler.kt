@@ -25,26 +25,25 @@ class ApiErrorHandler {
     private val log = LoggerFactory.getLogger(ApiErrorHandler::class.java)
 
     @ExceptionHandler(ApiFailure::class)
-    fun failure(failure: ApiFailure): ResponseEntity<ApiError> = ResponseEntity.status(failure.status()).body(failure.error())
+    fun failure(failure: ApiFailure): ResponseEntity<ApiError> =
+        ResponseEntity.status(failure.status()).body(failure.error())
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
-    fun body(exception: MethodArgumentNotValidException): ResponseEntity<ApiError> =
-        invalid(
-            exception.bindingResult.fieldErrors.map { FieldError(it.field, it.defaultMessage.orEmpty()) } +
-                exception.bindingResult.globalErrors.map { FieldError(it.objectName, it.defaultMessage.orEmpty()) },
-        )
+    fun body(exception: MethodArgumentNotValidException): ResponseEntity<ApiError> = invalid(
+        exception.bindingResult.fieldErrors.map { FieldError(it.field, it.defaultMessage.orEmpty()) } +
+            exception.bindingResult.globalErrors.map { FieldError(it.objectName, it.defaultMessage.orEmpty()) },
+    )
 
     @ExceptionHandler(HttpMessageNotReadableException::class)
-    fun unreadable(exception: HttpMessageNotReadableException): ResponseEntity<ApiError> =
-        invalid(
-            generateSequence(exception.cause) { it.cause }
-                .filterIsInstance<JacksonException>()
-                .firstOrNull()
-                ?.path
-                ?.takeIf { it.isNotEmpty() }
-                ?.let { listOf(FieldError(field(it), "Некорректное или отсутствующее значение")) }
-                .orEmpty(),
-        )
+    fun unreadable(exception: HttpMessageNotReadableException): ResponseEntity<ApiError> = invalid(
+        generateSequence(exception.cause) { it.cause }
+            .filterIsInstance<JacksonException>()
+            .firstOrNull()
+            ?.path
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { listOf(FieldError(field(it), "Некорректное или отсутствующее значение")) }
+            .orEmpty(),
+    )
 
     @ExceptionHandler(MethodArgumentTypeMismatchException::class)
     fun mismatch(exception: MethodArgumentTypeMismatchException): ResponseEntity<ApiError> =
@@ -59,14 +58,13 @@ class ApiErrorHandler {
         invalid(exception.constraintViolations.map { FieldError(it.propertyPath.last().name, it.message) })
 
     @ExceptionHandler(HandlerMethodValidationException::class)
-    fun parameters(exception: HandlerMethodValidationException): ResponseEntity<ApiError> =
-        invalid(
-            exception.parameterValidationResults.flatMap { result ->
-                result.resolvableErrors.map {
-                    FieldError(result.methodParameter.parameterName.orEmpty(), it.defaultMessage.orEmpty())
-                }
-            },
-        )
+    fun parameters(exception: HandlerMethodValidationException): ResponseEntity<ApiError> = invalid(
+        exception.parameterValidationResults.flatMap { result ->
+            result.resolvableErrors.map {
+                FieldError(result.methodParameter.parameterName.orEmpty(), it.defaultMessage.orEmpty())
+            }
+        },
+    )
 
     @ExceptionHandler(Exception::class)
     fun unexpected(exception: Exception): ResponseEntity<ApiError> =
@@ -75,12 +73,15 @@ class ApiErrorHandler {
                 .body(ApiError(ApiError.Code.VALIDATION_ERROR, "Некорректный запрос", emptyList()))
         } else {
             log.error("Request failed with an unexpected exception", exception)
-            ResponseEntity.status(if (exception is ErrorResponse) exception.statusCode else HttpStatus.INTERNAL_SERVER_ERROR)
+            ResponseEntity.status(
+                if (exception is ErrorResponse) exception.statusCode else HttpStatus.INTERNAL_SERVER_ERROR,
+            )
                 .body(ApiError(ApiError.Code.INTERNAL_ERROR, "Непредвиденная ошибка сервера", emptyList()))
         }
 
-    private fun invalid(details: List<FieldError>): ResponseEntity<ApiError> =
-        ResponseEntity.badRequest().body(ApiError(ApiError.Code.VALIDATION_ERROR, "Некорректные данные запроса", details))
+    private fun invalid(details: List<FieldError>): ResponseEntity<ApiError> = ResponseEntity.badRequest().body(
+        ApiError(ApiError.Code.VALIDATION_ERROR, "Некорректные данные запроса", details),
+    )
 
     private fun field(path: List<JacksonException.Reference>): String =
         path.joinToString("") { if (it.index >= 0) "[${it.index}]" else ".${it.propertyName}" }.removePrefix(".")
