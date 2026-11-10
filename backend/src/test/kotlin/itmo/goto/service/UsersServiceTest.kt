@@ -4,14 +4,18 @@ import itmo.goto.PostgresConfiguration
 import itmo.goto.Rows
 import itmo.goto.auth.Identity
 import itmo.goto.generated.model.ApiError
+import itmo.goto.generated.model.UpdateProfileRequest
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.assertj.core.api.Assertions.catchThrowableOfType
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
 import org.springframework.context.annotation.Import
+import org.springframework.http.HttpStatus
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.bean.override.convention.TestBean
+import org.springframework.web.server.ResponseStatusException
 import java.util.UUID
 import kotlin.random.Random
 
@@ -54,6 +58,28 @@ class UsersServiceTest(@Autowired private val service: UsersService, @Autowired 
             .extracting("code")
             .withFailMessage("Unknown token holder doesnt answer UNAUTHORIZED")
             .isEqualTo(ApiError.Code.UNAUTHORIZED)
+    }
+
+    @Test
+    fun `profile update answers not implemented`() {
+        assertThat(
+            catchThrowableOfType(ResponseStatusException::class.java) {
+                service.updateCurrentUser(UpdateProfileRequest("Имя ${Random.nextInt()}", setOf(UUID.randomUUID())))
+            }?.statusCode,
+        )
+            .withFailMessage("Profile update doesnt answer 501")
+            .isEqualTo(HttpStatus.NOT_IMPLEMENTED)
+    }
+
+    @Test
+    fun `other profile answers not implemented`() {
+        assertThat(
+            catchThrowableOfType(ResponseStatusException::class.java) {
+                service.getUser(UUID.randomUUID())
+            }?.statusCode,
+        )
+            .withFailMessage("Other profile doesnt answer 501")
+            .isEqualTo(HttpStatus.NOT_IMPLEMENTED)
     }
 
     companion object {

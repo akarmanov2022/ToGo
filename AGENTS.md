@@ -23,7 +23,8 @@ Backend (run from the repository root; tests need a running Docker daemon for Te
 ```sh
 docker compose -f infra/docker-compose.yml up -d    # local PostgreSQL on 5432 (db togo, user admin)
 ./backend/mvnw -f backend/pom.xml compile            # regenerates API interfaces from api/openapi.yaml
-./backend/mvnw -f backend/pom.xml verify             # full build and all tests, the check before declaring work done
+./backend/mvnw -f backend/pom.xml verify             # tests, Kover coverage, detekt and ktlint, the check before declaring work done
+./backend/mvnw -f backend/pom.xml ktlint:format      # fixes Kotlin formatting in place
 ./backend/mvnw -f backend/pom.xml test -Dtest=MigrationTest
 TELEGRAM_BOT_TOKEN=<token> ./backend/mvnw -f backend/pom.xml spring-boot:run    # serves on :8080
 ```
@@ -38,7 +39,8 @@ npm run lint
 npm run format:check   # npm run format rewrites files
 ```
 
-There is no CI yet; GitHub Actions workflows are planned in `tasks.md` section 2.
+GitHub Actions runs the same backend `verify` on every pull request and every push to `main` (`.github/workflows/backend.yml`) and attaches the coverage, analyzer, and test reports to the run.
+Frontend checks and deployment are planned in `tasks.md` section 2.
 
 ## Backend architecture
 
@@ -70,11 +72,14 @@ JPA entities live in `itmo.goto.model` and Spring Data repositories in `itmo.got
 
 - Repository and migration tests use `@DataJpaTest` with `@Import(PostgresConfiguration::class)`, a real PostgreSQL 18 container shared through the cached Spring context. H2 is deliberately absent because row locks and `uuidv7()` behave differently.
 - `Rows` inserts raw rows through `JdbcTemplate` to probe schema constraints without entities.
-- Web tests are `@WebMvcTest` slices; `web/ProbeController` is a test-only controller that triggers each failure kind for `ApiErrorHandler`.
+- Web tests are `@WebMvcTest` slices; `web/ProbeController` and `web/MethodProbeController` are test-only controllers that trigger each failure kind for `ApiErrorHandler`.
 - `auth/SignedLaunch` signs launch data the way Telegram does, so tests can send genuine, stale, or tampered `initData`.
 - `DemoProfileTest` is the only full-context test: it starts the whole application to prove the `demo` profile cannot bypass Telegram login.
 - Tests follow one style: backtick sentence names, one AssertJ assertion per test passed through a negative `withFailMessage`, random inputs from `kotlin.random.Random`, and `@TestBean` to replace the `Clock`.
 - Logging is turned off in `src/test/resources/logback-test.xml`.
+- `verify` fails when Kover reports less than 80% line or branch coverage of hand-written code; only `itmo.goto.generated` and `main` are excluded. Never lower the threshold or add exclusions to pass it.
+- Each service method that still answers 501 has a stub test; replace it with behavior tests when the method is implemented.
+- detekt (`backend/detekt.yml`, on top of the default rules) and ktlint (`.editorconfig`, `intellij_idea` style) check main and test code with zero tolerance and no baselines. Fix violations instead of suppressing them; every exception in `detekt.yml` carries a comment with its reason.
 
 ## Frontend architecture
 
