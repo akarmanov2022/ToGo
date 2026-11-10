@@ -1,0 +1,40 @@
+package itmo.goto.auth
+
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
+import org.springframework.http.HttpMethod
+import org.springframework.security.config.annotation.web.builders.HttpSecurity
+import org.springframework.security.config.http.SessionCreationPolicy
+import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.header.writers.StaticHeadersWriter
+import tools.jackson.databind.json.JsonMapper
+
+/**
+ * Protects the API with application access tokens sent as Bearer credentials.
+ *
+ * Only the Telegram login and the health probe are open. Nothing authenticates through
+ * cookies, forms, or HTTP Basic, which is why CSRF protection is off, and no response is cached.
+ */
+@Configuration(proxyBeanMethods = false)
+class SecurityConfiguration {
+    @Bean
+    fun securityFilterChain(http: HttpSecurity, mapper: JsonMapper): SecurityFilterChain {
+        val challenge = BearerChallenge(mapper)
+        return http
+            .csrf { it.disable() }
+            .formLogin { it.disable() }
+            .httpBasic { it.disable() }
+            .logout { it.disable() }
+            .requestCache { it.disable() }
+            .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
+            .headers { it.cacheControl { control -> control.disable() }.addHeaderWriter(StaticHeadersWriter("Cache-Control", "no-store")) }
+            .authorizeHttpRequests {
+                it.requestMatchers(HttpMethod.POST, "/api/v1/auth/telegram").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                    .anyRequest().authenticated()
+            }
+            .oauth2ResourceServer { it.jwt { }.authenticationEntryPoint(challenge) }
+            .exceptionHandling { it.authenticationEntryPoint(challenge) }
+            .build()
+    }
+}
