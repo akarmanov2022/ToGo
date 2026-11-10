@@ -2,12 +2,26 @@ package itmo.goto.service
 
 import itmo.goto.generated.api.CategoriesApiService
 import itmo.goto.generated.model.Category
-import org.springframework.http.HttpStatus
+import itmo.goto.generated.model.EventCategory
 import org.springframework.stereotype.Service
-import org.springframework.web.server.ResponseStatusException
 
+/**
+ * Lists the fixed categories that profiles and events share, in their declaration order.
+ */
 @Service
 class CategoriesService : CategoriesApiService {
-    override fun getCategories(): List<Category> =
-        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Category listing is not implemented yet")
+    override fun getCategories(): List<Category> = EventCategory.entries.map {
+        Category(
+            it,
+            when (it) {
+                EventCategory.PICNIC -> "Пикник"
+                EventCategory.RUN -> "Пробежка"
+                EventCategory.EXCURSION -> "Поход на экскурсию"
+                EventCategory.BOARD_GAMES -> "Настолки"
+                EventCategory.QUEST -> "Квест"
+                EventCategory.CINEMA -> "Кино"
+                EventCategory.CAFE -> "Кафе/Ресторан"
+            },
+        )
+    }
 }
