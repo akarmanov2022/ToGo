@@ -7,12 +7,6 @@ import itmo.goto.generated.model.UpdateEventRequest
 import org.springframework.boot.jackson.JacksonMixin
 import java.time.OffsetDateTime
 
-/**
- * Rejects an explicit null in an event change, which the contract forbids but the generated request skips.
- *
- * Jackson lets mix-in annotations replace those of the generated fields, so each field here turns the generated
- * null skipping into a failure that the error handler reports as a validation error naming the field.
- */
 @JacksonMixin(UpdateEventRequest::class)
 abstract class UpdateEventNulls {
     @field:JsonSetter(nulls = Nulls.FAIL)

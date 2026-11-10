@@ -22,4 +22,7 @@ interface ParticipationRepository : JpaRepository<Participation, UUID> {
             "AND p.event.state IN ('recruiting', 'registration_closed')",
     )
     fun active(user: UUID): List<Event>
+
+    @Query("SELECT p.event.id FROM Participation p WHERE p.user.id = ?1 AND p.event.id IN ?2")
+    fun joined(user: UUID, events: Collection<UUID>): List<UUID>
 }

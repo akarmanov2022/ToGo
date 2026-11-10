@@ -47,8 +47,14 @@ Deployment is planned in `tasks.md` section 2.
 The contract drives the server.
 On `generate-sources`, `openapi-generator` (`kotlin-spring`, `serviceInterface=true`, `useTags=true`) writes controllers and one `*ApiService` interface per tag into `itmo.goto.generated.api` and DTOs into `itmo.goto.generated.model`, under `target/generated-sources/openapi`.
 Never edit generated code; change `api/openapi.yaml` first, then implement the regenerated interface.
-Hand-written classes in `itmo.goto.service` (such as `EventsService`) implement those interfaces; the event listing and event details still throw `501 NOT_IMPLEMENTED`.
-`EventsService` hands each operation to the class responsible for it: `EventCreationService` creates events, `EventDelegateService` changes and cancels them, and `EventParticipationService` joins, leaves, and lists participants.
+Hand-written classes in `itmo.goto.service` (such as `EventsService`) implement those interfaces; comments still throw
+`501 NOT_IMPLEMENTED`.
+`EventsService` hands each operation to the class responsible for it: `EventCreationService` creates events,
+`EventDelegateService` changes and cancels them, `EventParticipationService` joins, leaves, and lists participants, and
+`EventDiscoveryService` lists events and shows one.
+The listing turns each query parameter into one JPA `Specification` from `itmo.goto.repository` (`Titled`,
+`Categorized`, `StartingFrom`, `StartingBefore`, `Staged`, `Joined`, `Joinable`); `EventDiscoveryService` brings due
+events up to date before searching, so filters see current states.
 Contract changes must stay additive: existing fields and endpoints do not change, new ones are optional.
 
 Errors always use the contract's `ApiError { code, message, details }`, never problem details.

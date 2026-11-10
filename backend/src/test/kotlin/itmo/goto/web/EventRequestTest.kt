@@ -167,6 +167,42 @@ class EventRequestTest(@Autowired private val mvc: MockMvcTester, @Autowired pri
             .isEqualTo("VALIDATION_ERROR")
     }
 
+    @Test
+    fun `listing with unknown category names the category`() {
+        assertThat(mvc.get().uri("/api/v1/events?category=SPORT${Random.nextInt(1000)}"))
+            .bodyJson()
+            .extractingPath("$.details[0].field")
+            .withFailMessage("Listing with an unknown category doesnt name category")
+            .isEqualTo("category")
+    }
+
+    @Test
+    fun `listing with limit above 100 names the limit`() {
+        assertThat(mvc.get().uri("/api/v1/events?limit=${Random.nextInt(101, 10_000)}"))
+            .bodyJson()
+            .extractingPath("$.details[0].field")
+            .withFailMessage("Listing with a limit above 100 doesnt name limit")
+            .isEqualTo("limit")
+    }
+
+    @Test
+    fun `listing with negative offset names the offset`() {
+        assertThat(mvc.get().uri("/api/v1/events?offset=${Random.nextInt(-10_000, 0)}"))
+            .bodyJson()
+            .extractingPath("$.details[0].field")
+            .withFailMessage("Listing with a negative offset doesnt name offset")
+            .isEqualTo("offset")
+    }
+
+    @Test
+    fun `details with malformed id give validation error`() {
+        assertThat(mvc.get().uri("/api/v1/events/event-${Random.nextInt(1000)}"))
+            .bodyJson()
+            .extractingPath("$.code")
+            .withFailMessage("Details with a malformed id dont give VALIDATION_ERROR")
+            .isEqualTo("VALIDATION_ERROR")
+    }
+
     private fun create(body: Map<String, Any>) =
         mvc.post().uri("/api/v1/events").contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body))
 
