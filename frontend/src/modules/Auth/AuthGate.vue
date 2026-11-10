@@ -46,14 +46,3 @@ const auth = useAuthStore()
     </section>
   </main>
 </template>
-
-<style scoped>
-.mock-banner {
-  margin: 0;
-  padding: 8px 16px;
-  background: #fff0bb;
-  color: #423513;
-  font-size: 13px;
-  text-align: center;
-}
-</style>

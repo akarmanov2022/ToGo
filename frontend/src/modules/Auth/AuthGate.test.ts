@@ -27,14 +27,14 @@ describe('Auth gate', () => {
     expect(wrapper.text()).not.toContain('protected-content')
     expect(wrapper.find('form').exists()).toBe(false)
   })
-  it('shows protected content only after login with explicit mock banner', () => {
+  it('shows protected content after login without a demo banner', () => {
     useAuthStore().status = 'authenticated'
     const wrapper = mount(AuthGate, {
       props: { mockMode: true },
       slots: { default: 'protected-content' },
     })
     expect(wrapper.text()).toContain('protected-content')
-    expect(wrapper.text()).toContain('Демо-режим MSW')
+    expect(wrapper.text()).not.toContain('Демо-режим MSW')
   })
   it('offers reopen instead of retry on expired session', () => {
     useAuthStore().status = 'expired'
