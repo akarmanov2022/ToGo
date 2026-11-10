@@ -32,7 +32,11 @@ class DemoProfileTest(
 ) {
     @Test
     fun `demo login is not served`() {
-        assertThat(mvc.post().uri("/api/v1/auth/demo-login").contentType(MediaType.APPLICATION_JSON).content("""{"userId":"${Random.nextLong()}"}"""))
+        assertThat(
+            mvc.post().uri(
+                "/api/v1/auth/demo-login",
+            ).contentType(MediaType.APPLICATION_JSON).content("""{"userId":"${Random.nextLong()}"}"""),
+        )
             .withFailMessage("Demo login is served in the demo profile")
             .hasStatus(HttpStatus.UNAUTHORIZED)
     }
@@ -46,7 +50,15 @@ class DemoProfileTest(
 
     @Test
     fun `unverified launch data gets no token`() {
-        assertThat(login(SignedLaunch("${Random.nextLong()}:AAforged", Instant.now(), user(Random.nextLong(1, 10_000_000_000))).text()))
+        assertThat(
+            login(
+                SignedLaunch(
+                    "${Random.nextLong()}:AAforged",
+                    Instant.now(),
+                    user(Random.nextLong(1, 10_000_000_000)),
+                ).text(),
+            ),
+        )
             .bodyJson()
             .extractingPath("$.code")
             .withFailMessage("Unverified launch data gets a token in the demo profile")
@@ -65,7 +77,9 @@ class DemoProfileTest(
     @Test
     fun `verified login token opens own profile`() {
         val id = Random.nextLong(1, 10_000_000_000)
-        val access = JsonMapper.builder().build().readTree(login(SignedLaunch(token, Instant.now(), user(id)).text()).exchange().response.contentAsString)
+        val access = JsonMapper.builder().build().readTree(
+            login(SignedLaunch(token, Instant.now(), user(id)).text()).exchange().response.contentAsString,
+        )
             .get("accessToken").stringValue()
         assertThat(mvc.get().uri("/api/v1/users/me").header(HttpHeaders.AUTHORIZATION, "Bearer $access"))
             .bodyJson()
@@ -75,9 +89,9 @@ class DemoProfileTest(
             .isEqualTo(id)
     }
 
-    private fun login(data: String) =
-        mvc.post().uri("/api/v1/auth/telegram").contentType(MediaType.APPLICATION_JSON)
-            .content(JsonMapper.builder().build().writeValueAsString(mapOf("initData" to data)))
+    private fun login(data: String) = mvc.post().uri("/api/v1/auth/telegram").contentType(MediaType.APPLICATION_JSON)
+        .content(JsonMapper.builder().build().writeValueAsString(mapOf("initData" to data)))
 
-    private fun user(id: Long): String = """{"id":$id,"first_name":"Имя${Random.nextInt(1000)}","username":"user${Random.nextInt(1000)}"}"""
+    private fun user(id: Long): String =
+        """{"id":$id,"first_name":"Имя${Random.nextInt(1000)}","username":"user${Random.nextInt(1000)}"}"""
 }

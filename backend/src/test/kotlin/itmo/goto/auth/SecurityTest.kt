@@ -17,19 +17,29 @@ import org.springframework.context.annotation.Import
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm
+import org.springframework.security.oauth2.jwt.JwsHeader
+import org.springframework.security.oauth2.jwt.JwtClaimsSet
 import org.springframework.security.oauth2.jwt.JwtEncoder
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.assertj.MockMvcTester
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.util.Base64
 import java.util.UUID
 import javax.crypto.spec.SecretKeySpec
 import kotlin.random.Random
 
 @WebMvcTest(
-    controllers = [AuthApiController::class, CategoriesApiController::class, EventsApiController::class, UsersApiController::class],
+    controllers = [
+        AuthApiController::class,
+        CategoriesApiController::class,
+        EventsApiController::class,
+        UsersApiController::class,
+    ],
     properties = ["telegram.bot-token=7000000001:AAsecurity-test-token"],
 )
 @Import(SecurityConfiguration::class, TokenConfiguration::class, ClockConfiguration::class)
@@ -83,7 +93,11 @@ class SecurityTest(
 
     @Test
     fun `event creation without token answers unauthorized`() {
-        assertThat(mvc.post().uri("/api/v1/events").contentType(MediaType.APPLICATION_JSON).content("""{"title":"Событие ${Random.nextInt()}"}"""))
+        assertThat(
+            mvc.post().uri(
+                "/api/v1/events",
+            ).contentType(MediaType.APPLICATION_JSON).content("""{"title":"Событие ${Random.nextInt()}"}"""),
+        )
             .withFailMessage("Event creation without a token doesnt answer 401")
             .hasStatus(HttpStatus.UNAUTHORIZED)
     }
@@ -113,7 +127,11 @@ class SecurityTest(
 
     @Test
     fun `issued token opens category directory`() {
-        assertThat(mvc.get().uri("/api/v1/categories").header(HttpHeaders.AUTHORIZATION, "Bearer ${tokens.issue(UUID.randomUUID())}"))
+        assertThat(
+            mvc.get().uri(
+                "/api/v1/categories",
+            ).header(HttpHeaders.AUTHORIZATION, "Bearer ${tokens.issue(UUID.randomUUID())}"),
+        )
             .withFailMessage("Issued token doesnt open the category directory")
             .hasStatus(HttpStatus.OK)
     }
@@ -121,7 +139,10 @@ class SecurityTest(
     @Test
     fun `token signed with another key answers unauthorized`() {
         val forged =
-            AccessTokens(NimbusJwtEncoder.withSecretKey(SecretKeySpec(Random.nextBytes(32), "HmacSHA256")).build(), Clock.systemUTC())
+            AccessTokens(
+                NimbusJwtEncoder.withSecretKey(SecretKeySpec(Random.nextBytes(32), "HmacSHA256")).build(),
+                Clock.systemUTC(),
+            )
                 .issue(UUID.randomUUID())
         assertThat(mvc.get().uri("/api/v1/categories").header(HttpHeaders.AUTHORIZATION, "Bearer $forged"))
             .withFailMessage("Token signed with another key doesnt answer 401")
@@ -133,9 +154,15 @@ class SecurityTest(
         val parts = tokens.issue(UUID.randomUUID()).split(".")
         val altered =
             Base64.getUrlEncoder().withoutPadding().encodeToString(
-                String(Base64.getUrlDecoder().decode(parts[1])).replace(Regex("\"sub\":\"[^\"]+\""), "\"sub\":\"${UUID.randomUUID()}\"").toByteArray(),
+                String(
+                    Base64.getUrlDecoder().decode(parts[1]),
+                ).replace(Regex("\"sub\":\"[^\"]+\""), "\"sub\":\"${UUID.randomUUID()}\"").toByteArray(),
             )
-        assertThat(mvc.get().uri("/api/v1/categories").header(HttpHeaders.AUTHORIZATION, "Bearer ${parts[0]}.$altered.${parts[2]}"))
+        assertThat(
+            mvc.get().uri(
+                "/api/v1/categories",
+            ).header(HttpHeaders.AUTHORIZATION, "Bearer ${parts[0]}.$altered.${parts[2]}"),
+        )
             .withFailMessage("Token with an altered subject doesnt answer 401")
             .hasStatus(HttpStatus.UNAUTHORIZED)
     }
@@ -143,7 +170,10 @@ class SecurityTest(
     @Test
     fun `expired token answers unauthorized`() {
         val expired =
-            AccessTokens(encoder, Clock.offset(Clock.systemUTC(), Duration.ofSeconds(-Random.nextLong(3601, 1_000_000))))
+            AccessTokens(
+                encoder,
+                Clock.offset(Clock.systemUTC(), Duration.ofSeconds(-Random.nextLong(3601, 1_000_000))),
+            )
                 .issue(UUID.randomUUID())
         assertThat(mvc.get().uri("/api/v1/categories").header(HttpHeaders.AUTHORIZATION, "Bearer $expired"))
             .withFailMessage("Expired token doesnt answer 401")
@@ -151,8 +181,26 @@ class SecurityTest(
     }
 
     @Test
+    fun `token without expiry answers unauthorized`() {
+        val endless =
+            encoder.encode(
+                JwtEncoderParameters.from(
+                    JwsHeader.with(MacAlgorithm.HS256).build(),
+                    JwtClaimsSet.builder().subject(UUID.randomUUID().toString()).issuedAt(Instant.now()).build(),
+                ),
+            ).tokenValue
+        assertThat(mvc.get().uri("/api/v1/categories").header(HttpHeaders.AUTHORIZATION, "Bearer $endless"))
+            .withFailMessage("Token without expiry doesnt answer 401")
+            .hasStatus(HttpStatus.UNAUTHORIZED)
+    }
+
+    @Test
     fun `rejected token gives unauthorized code`() {
-        assertThat(mvc.get().uri("/api/v1/categories").header(HttpHeaders.AUTHORIZATION, "Bearer ${Random.nextLong()}.${Random.nextLong()}"))
+        assertThat(
+            mvc.get().uri(
+                "/api/v1/categories",
+            ).header(HttpHeaders.AUTHORIZATION, "Bearer ${Random.nextLong()}.${Random.nextLong()}"),
+        )
             .bodyJson()
             .extractingPath("$.code")
             .withFailMessage("Rejected token doesnt give UNAUTHORIZED")
@@ -161,7 +209,9 @@ class SecurityTest(
 
     @Test
     fun `http basic credentials are not accepted`() {
-        val credentials = Base64.getEncoder().encodeToString("user${Random.nextInt()}:password${Random.nextInt()}".toByteArray())
+        val credentials = Base64.getEncoder().encodeToString(
+            "user${Random.nextInt()}:password${Random.nextInt()}".toByteArray(),
+        )
         assertThat(mvc.get().uri("/api/v1/categories").header(HttpHeaders.AUTHORIZATION, "Basic $credentials"))
             .withFailMessage("HTTP Basic credentials are accepted")
             .hasStatus(HttpStatus.UNAUTHORIZED)
@@ -169,7 +219,11 @@ class SecurityTest(
 
     @Test
     fun `form login is not served`() {
-        assertThat(mvc.post().uri("/login").param("username", "user${Random.nextInt()}").param("password", "password${Random.nextInt()}"))
+        assertThat(
+            mvc.post().uri(
+                "/login",
+            ).param("username", "user${Random.nextInt()}").param("password", "password${Random.nextInt()}"),
+        )
             .withFailMessage("Form login is served")
             .hasStatus(HttpStatus.UNAUTHORIZED)
     }
@@ -177,7 +231,9 @@ class SecurityTest(
     @Test
     fun `authorized request creates no session`() {
         assertThat(
-            mvc.get().uri("/api/v1/categories").header(HttpHeaders.AUTHORIZATION, "Bearer ${tokens.issue(UUID.randomUUID())}")
+            mvc.get().uri(
+                "/api/v1/categories",
+            ).header(HttpHeaders.AUTHORIZATION, "Bearer ${tokens.issue(UUID.randomUUID())}")
                 .exchange().request.getSession(false),
         )
             .withFailMessage("Authorized request creates a session")

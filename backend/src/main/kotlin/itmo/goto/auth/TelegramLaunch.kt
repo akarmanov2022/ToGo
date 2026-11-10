@@ -1,6 +1,7 @@
 package itmo.goto.auth
 
 import tools.jackson.core.JacksonException
+import tools.jackson.databind.JsonNode
 import tools.jackson.databind.json.JsonMapper
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets.UTF_8
@@ -45,19 +46,17 @@ class TelegramLaunch(private val token: String, private val clock: Clock) {
         return decode(parts[0]) to decode(parts[1])
     }
 
-    private fun decode(text: String): String =
-        try {
-            URLDecoder.decode(text, UTF_8)
-        } catch (exception: IllegalArgumentException) {
-            throw InvalidLaunch("Launch data holds a malformed escape")
-        }
+    private fun decode(text: String): String = try {
+        URLDecoder.decode(text, UTF_8)
+    } catch (exception: IllegalArgumentException) {
+        throw InvalidLaunch("Launch data holds a malformed escape", exception)
+    }
 
-    private fun hex(hash: String): ByteArray =
-        try {
-            HexFormat.of().parseHex(hash)
-        } catch (exception: IllegalArgumentException) {
-            throw InvalidLaunch("Launch data hash is not hexadecimal")
-        }
+    private fun hex(hash: String): ByteArray = try {
+        HexFormat.of().parseHex(hash)
+    } catch (exception: IllegalArgumentException) {
+        throw InvalidLaunch("Launch data hash is not hexadecimal", exception)
+    }
 
     private fun signature(fields: Map<String, String>): ByteArray =
         Hmac(Hmac("WebAppData".toByteArray()).sign(token.toByteArray()))
@@ -68,22 +67,29 @@ class TelegramLaunch(private val token: String, private val clock: Clock) {
             date?.toLongOrNull()?.let { runCatching { Instant.ofEpochSecond(it) }.getOrNull() }
                 ?: throw InvalidLaunch("Launch data carries no valid auth_date")
         val age = Duration.between(issued, clock.instant())
-        if (age > Duration.ofMinutes(5) || age < Duration.ofSeconds(-30)) {
+        if (age > lifetime || age < skew.negated()) {
             throw InvalidLaunch("Launch data auth_date is outside the accepted window")
         }
     }
 
     private fun signed(json: String?): TelegramUser {
         val node =
-            try {
-                json?.let { mapper.readTree(it) }
-            } catch (exception: JacksonException) {
-                throw InvalidLaunch("Launch data user is not valid JSON")
-            }
-        val id = node?.get("id")
-        if (id == null || !id.isIntegralNumber || !id.canConvertToLong() || id.longValue() <= 0) {
-            throw InvalidLaunch("Launch data carries no user with a valid Telegram id")
-        }
-        return TelegramUser(node).takeIf { it.name().isNotEmpty() } ?: throw InvalidLaunch("Launch data user has no name")
+            json?.let { tree(it) }?.takeIf { it.get("id")?.let(::identified) == true }
+                ?: throw InvalidLaunch("Launch data carries no user with a valid Telegram id")
+        return TelegramUser(node).takeIf { it.name().isNotEmpty() }
+            ?: throw InvalidLaunch("Launch data user has no name")
+    }
+
+    private fun tree(json: String): JsonNode = try {
+        mapper.readTree(json)
+    } catch (exception: JacksonException) {
+        throw InvalidLaunch("Launch data user is not valid JSON", exception)
+    }
+
+    private fun identified(id: JsonNode): Boolean = id.isIntegralNumber && id.canConvertToLong() && id.longValue() > 0
+
+    private companion object {
+        val lifetime: Duration = Duration.ofMinutes(5)
+        val skew: Duration = Duration.ofSeconds(30)
     }
 }

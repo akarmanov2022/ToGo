@@ -25,7 +25,11 @@ class SecurityConfiguration {
             .logout { it.disable() }
             .requestCache { it.disable() }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
-            .headers { it.cacheControl { control -> control.disable() }.addHeaderWriter(StaticHeadersWriter("Cache-Control", "no-store")) }
+            .headers {
+                it.cacheControl { control ->
+                    control.disable()
+                }.addHeaderWriter(StaticHeadersWriter("Cache-Control", "no-store"))
+            }
             .authorizeHttpRequests {
                 it.requestMatchers(HttpMethod.POST, "/api/v1/auth/telegram").permitAll()
                     .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()

@@ -18,15 +18,14 @@ class Rows(private val jdbc: JdbcTemplate) {
         "Пользователь ${Random.nextInt()}",
     )!!
 
-    fun user(id: UUID, tg: Long, login: String?): UUID =
-        jdbc.queryForObject(
-            "INSERT INTO users (id, tg_id, tg_login, name) VALUES (?, ?, ?, ?) RETURNING id",
-            UUID::class.java,
-            id,
-            tg,
-            login,
-            "Пользователь ${Random.nextInt()}",
-        )!!
+    fun user(id: UUID, tg: Long, login: String?): UUID = jdbc.queryForObject(
+        "INSERT INTO users (id, tg_id, tg_login, name) VALUES (?, ?, ?, ?) RETURNING id",
+        UUID::class.java,
+        id,
+        tg,
+        login,
+        "Пользователь ${Random.nextInt()}",
+    )!!
 
     fun event(
         closes: OffsetDateTime = OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(Random.nextLong(10, 600)),

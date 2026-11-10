@@ -46,7 +46,11 @@ class UsersServiceTest(@Autowired private val service: UsersService, @Autowired 
     fun `current user lists chosen categories`() {
         Rows(jdbc).user(holder, Random.nextLong(1, 10_000_000_000), null)
         val category = jdbc.queryForList("SELECT name FROM categories", String::class.java).random()
-        jdbc.update("INSERT INTO user_categories (user_id, category_id) SELECT ?, id FROM categories WHERE name = ?", holder, category)
+        jdbc.update(
+            "INSERT INTO user_categories (user_id, category_id) SELECT ?, id FROM categories WHERE name = ?",
+            holder,
+            category,
+        )
         assertThat(service.getCurrentUser().categories.map { it.name })
             .withFailMessage("Current user doesnt list the chosen categories")
             .containsExactly(category)

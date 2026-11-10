@@ -20,7 +20,13 @@ class TokenIdentityTest {
         val user = UUID.randomUUID()
         assertThat(
             TokenIdentity(
-                context(JwtAuthenticationToken(Jwt.withTokenValue("token${Random.nextInt()}").header("alg", "HS256").subject(user.toString()).build())),
+                context(
+                    JwtAuthenticationToken(
+                        Jwt.withTokenValue(
+                            "token${Random.nextInt()}",
+                        ).header("alg", "HS256").subject(user.toString()).build(),
+                    ),
+                ),
             ).user(),
         )
             .withFailMessage("Token subject doesnt identify the user")
@@ -31,11 +37,43 @@ class TokenIdentityTest {
     fun `anonymous request answers unauthorized`() {
         assertThatThrownBy {
             TokenIdentity(
-                context(AnonymousAuthenticationToken("key${Random.nextInt()}", "anonymousUser", AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS"))),
+                context(
+                    AnonymousAuthenticationToken(
+                        "key${Random.nextInt()}",
+                        "anonymousUser",
+                        AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS"),
+                    ),
+                ),
             ).user()
         }
             .extracting("code")
             .withFailMessage("Anonymous request doesnt answer UNAUTHORIZED")
+            .isEqualTo(ApiError.Code.UNAUTHORIZED)
+    }
+
+    @Test
+    fun `subject that is not a uuid answers unauthorized`() {
+        assertThatThrownBy {
+            TokenIdentity(
+                context(
+                    JwtAuthenticationToken(
+                        Jwt.withTokenValue(
+                            "token${Random.nextInt()}",
+                        ).header("alg", "HS256").subject("user${Random.nextInt()}").build(),
+                    ),
+                ),
+            ).user()
+        }
+            .extracting("code")
+            .withFailMessage("Subject that is not a UUID doesnt answer UNAUTHORIZED")
+            .isEqualTo(ApiError.Code.UNAUTHORIZED)
+    }
+
+    @Test
+    fun `request without authentication answers unauthorized`() {
+        assertThatThrownBy { TokenIdentity { SecurityContextImpl() }.user() }
+            .extracting("code")
+            .withFailMessage("Request without authentication doesnt answer UNAUTHORIZED")
             .isEqualTo(ApiError.Code.UNAUTHORIZED)
     }
 

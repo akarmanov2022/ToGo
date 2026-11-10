@@ -5,4 +5,4 @@ package itmo.goto.auth
  *
  * Messages describe the defect only and never quote the launch data itself.
  */
-class InvalidLaunch(message: String) : RuntimeException(message)
+class InvalidLaunch(message: String, cause: Throwable? = null) : RuntimeException(message, cause)

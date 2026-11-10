@@ -20,9 +20,8 @@ import java.util.UUID
 @Service
 class UsersService(private val users: UserRepository, private val identity: Identity) : UsersApiService {
     @Transactional(readOnly = true)
-    override fun getCurrentUser(): CurrentUser =
-        users.findById(identity.user()).map { it.current() }
-            .orElseThrow { ApiFailure(ApiError.Code.UNAUTHORIZED, "Учётная запись не найдена, войдите заново") }
+    override fun getCurrentUser(): CurrentUser = users.findById(identity.user()).map { it.current() }
+        .orElseThrow { ApiFailure(ApiError.Code.UNAUTHORIZED, "Учётная запись не найдена, войдите заново") }
 
     override fun updateCurrentUser(updateProfileRequest: UpdateProfileRequest): CurrentUser =
         throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Profile update is not implemented yet")

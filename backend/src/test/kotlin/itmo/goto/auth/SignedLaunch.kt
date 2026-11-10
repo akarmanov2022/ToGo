@@ -13,17 +13,22 @@ import javax.crypto.spec.SecretKeySpec
  */
 class SignedLaunch(private val token: String, private val fields: Map<String, String>) {
     constructor(token: String, issued: Instant, user: String) :
-        this(token, mapOf("auth_date" to issued.epochSecond.toString(), "query_id" to "AAH${issued.nano}", "user" to user))
-
-    fun text(): String =
-        (fields + ("hash" to HexFormat.of().formatHex(hash()))).entries
-            .joinToString("&") { "${URLEncoder.encode(it.key, UTF_8)}=${URLEncoder.encode(it.value, UTF_8)}" }
-
-    private fun hash(): ByteArray =
-        hmac(
-            hmac("WebAppData".toByteArray(), token.toByteArray()),
-            fields.toSortedMap().entries.joinToString("\n") { "${it.key}=${it.value}" }.toByteArray(),
+        this(
+            token,
+            mapOf(
+                "auth_date" to issued.epochSecond.toString(),
+                "query_id" to "AAH${issued.nano}",
+                "user" to user,
+            ),
         )
+
+    fun text(): String = (fields + ("hash" to HexFormat.of().formatHex(hash()))).entries
+        .joinToString("&") { "${URLEncoder.encode(it.key, UTF_8)}=${URLEncoder.encode(it.value, UTF_8)}" }
+
+    private fun hash(): ByteArray = hmac(
+        hmac("WebAppData".toByteArray(), token.toByteArray()),
+        fields.toSortedMap().entries.joinToString("\n") { "${it.key}=${it.value}" }.toByteArray(),
+    )
 
     private fun hmac(key: ByteArray, data: ByteArray): ByteArray =
         Mac.getInstance("HmacSHA256").apply { init(SecretKeySpec(key, "HmacSHA256")) }.doFinal(data)

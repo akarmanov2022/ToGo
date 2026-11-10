@@ -16,10 +16,17 @@ import tools.jackson.databind.json.JsonMapper
 class BearerChallenge(private val mapper: JsonMapper) : AuthenticationEntryPoint {
     private val challenge = BearerTokenAuthenticationEntryPoint()
 
-    override fun commence(request: HttpServletRequest, response: HttpServletResponse, exception: AuthenticationException) {
+    override fun commence(
+        request: HttpServletRequest,
+        response: HttpServletResponse,
+        exception: AuthenticationException,
+    ) {
         challenge.commence(request, response, exception)
         response.contentType = MediaType.APPLICATION_JSON_VALUE
         response.characterEncoding = Charsets.UTF_8.name()
-        mapper.writeValue(response.outputStream, ApiError(ApiError.Code.UNAUTHORIZED, "Требуется вход через Telegram", emptyList()))
+        mapper.writeValue(
+            response.outputStream,
+            ApiError(ApiError.Code.UNAUTHORIZED, "Требуется вход через Telegram", emptyList()),
+        )
     }
 }

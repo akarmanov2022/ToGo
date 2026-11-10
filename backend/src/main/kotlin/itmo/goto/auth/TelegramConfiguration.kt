@@ -11,5 +11,6 @@ import java.time.Clock
 @Configuration(proxyBeanMethods = false)
 class TelegramConfiguration {
     @Bean
-    fun telegramLaunch(@Value("\${telegram.bot-token}") token: String, clock: Clock): TelegramLaunch = TelegramLaunch(token, clock)
+    fun telegramLaunch(@Value("\${telegram.bot-token}") token: String, clock: Clock): TelegramLaunch =
+        TelegramLaunch(token, clock)
 }

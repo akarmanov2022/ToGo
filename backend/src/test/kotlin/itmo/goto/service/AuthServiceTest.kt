@@ -126,7 +126,11 @@ class AuthServiceTest(
 
     @Test
     fun `rejected launch data gives invalid init data code`() {
-        assertThatThrownBy { service.authenticateTelegram(TelegramAuthRequest(SignedLaunch("${Random.nextLong()}:AAforged", moment, user()).text())) }
+        assertThatThrownBy {
+            service.authenticateTelegram(
+                TelegramAuthRequest(SignedLaunch("${Random.nextLong()}:AAforged", moment, user()).text()),
+            )
+        }
             .extracting("code")
             .withFailMessage("Rejected launch data doesnt give INVALID_TELEGRAM_INIT_DATA")
             .isEqualTo(ApiError.Code.INVALID_TELEGRAM_INIT_DATA)
@@ -135,7 +139,11 @@ class AuthServiceTest(
     @Test
     fun `rejected launch data creates no account`() {
         val id = Random.nextLong(1, 10_000_000_000)
-        runCatching { service.authenticateTelegram(TelegramAuthRequest(SignedLaunch(token, moment.minusSeconds(301), user(id = id)).text())) }
+        runCatching {
+            service.authenticateTelegram(
+                TelegramAuthRequest(SignedLaunch(token, moment.minusSeconds(301), user(id = id)).text()),
+            )
+        }
         users.flush()
         assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE tg_id = ?", Long::class.java, id))
             .withFailMessage("Rejected launch data creates an account")
@@ -150,14 +158,13 @@ class AuthServiceTest(
         last: String = "Фамилия${Random.nextInt(1000)}",
         username: String? = "user${Random.nextInt(1000)}",
         photo: String = "https://t.me/i/userpic/320/${Random.nextInt()}.jpg",
-    ): String =
-        listOfNotNull(
-            "\"id\":$id",
-            "\"first_name\":\"$first\"",
-            "\"last_name\":\"$last\"",
-            username?.let { "\"username\":\"$it\"" },
-            "\"photo_url\":\"$photo\"",
-        ).joinToString(",", "{", "}")
+    ): String = listOfNotNull(
+        "\"id\":$id",
+        "\"first_name\":\"$first\"",
+        "\"last_name\":\"$last\"",
+        username?.let { "\"username\":\"$it\"" },
+        "\"photo_url\":\"$photo\"",
+    ).joinToString(",", "{", "}")
 
     companion object {
         private val moment = Instant.ofEpochSecond(Random.nextLong(1_600_000_000, 2_000_000_000))

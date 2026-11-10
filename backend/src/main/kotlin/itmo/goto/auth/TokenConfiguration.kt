@@ -7,7 +7,11 @@ import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator
 import org.springframework.security.oauth2.core.OAuth2Error
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm
-import org.springframework.security.oauth2.jwt.*
+import org.springframework.security.oauth2.jwt.JwtDecoder
+import org.springframework.security.oauth2.jwt.JwtEncoder
+import org.springframework.security.oauth2.jwt.JwtTimestampValidator
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder
 import java.time.Clock
 import java.time.Duration
 import javax.crypto.SecretKey
@@ -36,14 +40,17 @@ class TokenConfiguration {
                 DelegatingOAuth2TokenValidator(
                     JwtTimestampValidator(Duration.ZERO).apply { setClock(clock) },
                     {
-                        if (it.expiresAt == null) OAuth2TokenValidatorResult.failure(
-                            OAuth2Error(
-                                "invalid_token",
-                                "Token carries no expiry",
-                                null
+                        if (it.expiresAt == null) {
+                            OAuth2TokenValidatorResult.failure(
+                                OAuth2Error(
+                                    "invalid_token",
+                                    "Token carries no expiry",
+                                    null,
+                                ),
                             )
-                        )
-                        else OAuth2TokenValidatorResult.success()
+                        } else {
+                            OAuth2TokenValidatorResult.success()
+                        }
                     },
                 ),
             )

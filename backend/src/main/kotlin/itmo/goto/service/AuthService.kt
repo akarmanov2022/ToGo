@@ -36,12 +36,14 @@ class AuthService(
             }
         val user =
             users.save(
-                (users.findByTgId(telegram.id()) ?: User(
-                    telegram.id(),
-                    telegram.login(),
-                    telegram.name(),
-                    telegram.photo()
-                ))
+                (
+                    users.findByTgId(telegram.id()) ?: User(
+                        telegram.id(),
+                        telegram.login(),
+                        telegram.name(),
+                        telegram.photo(),
+                    )
+                    )
                     .apply { tgLogin = telegram.login() },
             )
         return AuthResponse(

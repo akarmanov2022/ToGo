@@ -37,14 +37,13 @@ class User(
     )
     var categories: MutableSet<Category> = mutableSetOf()
 
-    fun current(): CurrentUser =
-        CurrentUser(
-            checkNotNull(id) { "User has no id before it is saved" },
-            tgId,
-            tgLogin,
-            name,
-            photoUrl,
-            city,
-            categories.sortedWith(compareBy({ it.name }, { it.id })).map { it.view() }.toSet(),
-        )
+    fun current(): CurrentUser = CurrentUser(
+        checkNotNull(id) { "User has no id before it is saved" },
+        tgId,
+        tgLogin,
+        name,
+        photoUrl,
+        city,
+        categories.sortedWith(compareBy({ it.name }, { it.id })).map { it.view() }.toSet(),
+    )
 }
