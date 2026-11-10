@@ -21,9 +21,13 @@ import tarfile
 
 name = Path(sys.argv[0]).name
 args = sys.argv[1:]
+if name == "sshpass":
+    assert args[:2] == ["-e", "ssh"]
+    assert os.environ["SSHPASS"] == "fake-password with ' quotes $ and spaces"
+    os.execvp(args[1], args[1:])
 entry = {"command": name, "args": args, "auth": os.getenv("DOCKER_CONFIG")}
 if name == "ssh":
-    entry["key"] = args[args.index("-i") + 1]
+    entry["known_hosts"] = next(a.split("=", 1)[1] for a in args if a.startswith("UserKnownHostsFile="))
     payload = sys.stdin.buffer.read() if "mkdir -p" not in args[-1] else b""
     if "tar -xzf" in args[-1]:
         with tarfile.open(fileobj=io.BytesIO(payload), mode="r:gz") as archive:
@@ -51,6 +55,8 @@ if name == "docker":
             sys.exit(1)
 elif name == "curl" and failure == "https":
     sys.exit(1)
+elif name == "ssh" and failure == "ssh":
+    sys.exit(255)
 '''
 
 
@@ -61,7 +67,7 @@ class DeploymentTests(unittest.TestCase):
         self.directory = Path(self.temporary.name)
         self.bin = self.directory / "bin"
         self.bin.mkdir()
-        for command in ("docker", "curl", "flock", "ssh"):
+        for command in ("docker", "curl", "flock", "ssh", "sshpass"):
             path = self.bin / command
             path.write_text(FAKE_COMMAND)
             path.chmod(0o755)
@@ -136,25 +142,46 @@ class DeploymentTests(unittest.TestCase):
         self.assertNotEqual(self.deploy("project").returncode, 0)
         self.assertFalse(any("pull" in c["args"] for c in self.calls()))
 
-    def test_ssh_transfers_only_release_files_and_cleans_up_key(self):
-        result = subprocess.run(
+    def remote_deploy(self, **overrides):
+        return subprocess.run(
             ["bash", str(ROOT / "scripts/deploy-remote.sh")],
             text=True, capture_output=True, timeout=10,
-            env={**self.env, "TOGO_RELEASE_SHA": SHA, "DEPLOY_HOST": "example.com",
-                 "DEPLOY_USER": "deploy", "DEPLOY_SSH_KEY": "fake-ssh-key",
+            env={**self.env, "TOGO_RELEASE_SHA": SHA, "USER_IP": "example.com",
+                 "USERNAME": "deploy", "ROOT_PASSWORD": "fake-password with ' quotes $ and spaces",
                  "DEPLOY_KNOWN_HOSTS": "fake-known-host", "DEPLOY_PATH": "/srv/togo",
-                 "DOCKERHUB_USERNAME": "kolzuk", "DOCKERHUB_TOKEN": "fake-registry-token"},
+                 "DOCKERHUB_USERNAME": "kolzuk", "DOCKERHUB_TOKEN": "fake-registry-token", **overrides},
         )
+
+    def test_password_ssh_preserves_stdin_and_cleans_up_known_hosts(self):
+        result = self.remote_deploy()
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.calls()
         self.assertEqual(len(calls), 3)
-        self.assertIn("StrictHostKeyChecking=yes", calls[0]["args"])
-        self.assertFalse(Path(calls[0]["key"]).exists())
+        for call in calls:
+            self.assertIn("StrictHostKeyChecking=yes", call["args"])
+            self.assertIn("PreferredAuthentications=password", call["args"])
+            self.assertIn("PubkeyAuthentication=no", call["args"])
+            self.assertIn("deploy@example.com", call["args"])
+            self.assertNotIn("-i", call["args"])
+        self.assertFalse(Path(calls[0]["known_hosts"]).exists())
         files = calls[1]["files"]
         self.assertIn("scripts/deploy.sh", files)
         self.assertIn("infra/docker-compose.prod.yml", files)
         self.assertFalse(any(".env" in f or f.endswith(".pem") for f in files))
         self.assertNotIn("fake-registry-token", self.calls_file.read_text() + result.stdout + result.stderr)
+        self.assertNotIn("fake-password", self.calls_file.read_text() + result.stdout + result.stderr)
+
+    def test_missing_password_stops_before_ssh(self):
+        result = self.remote_deploy(ROOT_PASSWORD="")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("ROOT_PASSWORD", result.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_ssh_failure_stops_before_upload_and_cleans_up_known_hosts(self):
+        result = self.remote_deploy(FAIL_AT="ssh")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(len(self.calls()), 1)
+        self.assertFalse(Path(self.calls()[0]["known_hosts"]).exists())
 
 
 if __name__ == "__main__":

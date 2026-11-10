@@ -7,11 +7,11 @@ on:
         type: string
         required: true
     secrets:
-      DEPLOY_HOST:
+      USER_IP:
         required: true
-      DEPLOY_USER:
+      USERNAME:
         required: true
-      DEPLOY_SSH_KEY:
+      ROOT_PASSWORD:
         required: true
       DEPLOY_KNOWN_HOSTS:
         required: true
@@ -59,12 +59,17 @@ jobs:
             fi
           fi
           echo 'deploy=true' >> "$GITHUB_OUTPUT"
+      - name: Install SSH password helper
+        if: steps.revision.outputs.deploy == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends sshpass
       - name: Deploy release over SSH
         if: steps.revision.outputs.deploy == 'true'
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          USER_IP: ${{ secrets.USER_IP }}
+          USERNAME: ${{ secrets.USERNAME }}
+          ROOT_PASSWORD: ${{ secrets.ROOT_PASSWORD }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
           DEPLOY_PORT: ${{ vars.DEPLOY_PORT || '22' }}
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH || '/root/ToGo' }}

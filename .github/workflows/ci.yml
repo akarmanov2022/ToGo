@@ -83,9 +83,9 @@ jobs:
     with:
       revision: ${{ github.sha }}
     secrets:
-      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-      DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+      USER_IP: ${{ secrets.USER_IP }}
+      USERNAME: ${{ secrets.USERNAME }}
+      ROOT_PASSWORD: ${{ secrets.ROOT_PASSWORD }}
       DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
