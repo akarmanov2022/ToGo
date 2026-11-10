@@ -42,6 +42,10 @@ services:
     build:
       context: ../frontend
       dockerfile: Dockerfile
+      args:
+        # Временно для dev-togo.ru: вход без Telegram в тестовый профиль.
+        # После подключения Telegram: FRONTEND_MODE=production и пересборка образа.
+        FRONTEND_MODE: ${FRONTEND_MODE:-demo}
     image: togo-frontend:local
     container_name: togo-frontend
     volumes:

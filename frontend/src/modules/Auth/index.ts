@@ -1,1 +1,6 @@
 export { default as LoginScreen } from './LoginScreen.vue'
+export { default as AuthGate } from './AuthGate.vue'
+export { useAuthStore } from './session'
+export { getTelegramInitData } from './telegram'
+export { getCurrentUser } from './api'
+export { useCurrentUser } from './useCurrentUser'

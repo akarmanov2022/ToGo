@@ -1,0 +1,60 @@
+import type { MeetingPlace } from '@/modules/Map'
+
+export const demoPlaces: MeetingPlace[] = [
+  {
+    id: 'park',
+    name: 'Таврический сад',
+    address: 'Санкт-Петербург, Потёмкинская улица, 4',
+    latitude: 59.9475,
+    longitude: 30.3767,
+    category: 'PICNIC',
+  },
+  {
+    id: 'run',
+    name: 'Парк 300-летия Санкт-Петербурга',
+    address: 'Санкт-Петербург, Приморский проспект, 74',
+    latitude: 59.9833,
+    longitude: 30.2063,
+    category: 'RUN',
+  },
+  {
+    id: 'museum',
+    name: 'Русский музей',
+    address: 'Санкт-Петербург, Инженерная улица, 4',
+    latitude: 59.9388,
+    longitude: 30.3324,
+    category: 'EXCURSION',
+  },
+  {
+    id: 'games',
+    name: 'Место для настольных игр',
+    address: 'Санкт-Петербург, Невский проспект, 28',
+    latitude: 59.9357,
+    longitude: 30.3266,
+    category: 'BOARD_GAMES',
+  },
+  {
+    id: 'quest',
+    name: 'Место встречи на квест',
+    address: 'Санкт-Петербург, Садовая улица, 10',
+    latitude: 59.9343,
+    longitude: 30.3351,
+    category: 'QUEST',
+  },
+  {
+    id: 'cinema',
+    name: 'Кинотеатр «Аврора»',
+    address: 'Санкт-Петербург, Невский проспект, 60',
+    latitude: 59.934,
+    longitude: 30.3433,
+    category: 'CINEMA',
+  },
+  {
+    id: 'cafe',
+    name: 'Место встречи в кафе',
+    address: 'Санкт-Петербург, Невский проспект, 28',
+    latitude: 59.9357,
+    longitude: 30.3266,
+    category: 'CAFE',
+  },
+]
