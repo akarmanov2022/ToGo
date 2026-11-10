@@ -14,20 +14,20 @@ class ApiFailure(
     message: String,
     private val details: List<FieldError> = emptyList(),
 ) : RuntimeException(message) {
-    fun status(): HttpStatus =
-        when (code) {
-            ApiError.Code.VALIDATION_ERROR, ApiError.Code.CATEGORY_NOT_FOUND -> HttpStatus.BAD_REQUEST
-            ApiError.Code.INVALID_TELEGRAM_INIT_DATA, ApiError.Code.UNAUTHORIZED -> HttpStatus.UNAUTHORIZED
-            ApiError.Code.FORBIDDEN -> HttpStatus.FORBIDDEN
-            ApiError.Code.EVENT_NOT_FOUND, ApiError.Code.USER_NOT_FOUND -> HttpStatus.NOT_FOUND
-            ApiError.Code.REGISTRATION_CLOSED,
-            ApiError.Code.INVALID_EVENT_STATE,
-            ApiError.Code.EVENT_FULL,
-            ApiError.Code.CAPACITY_BELOW_PARTICIPANTS,
-            ApiError.Code.ORGANIZER_CANNOT_LEAVE,
-            -> HttpStatus.CONFLICT
-            ApiError.Code.INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR
-        }
+    fun status(): HttpStatus = when (code) {
+        ApiError.Code.VALIDATION_ERROR -> HttpStatus.BAD_REQUEST
+        ApiError.Code.INVALID_TELEGRAM_INIT_DATA, ApiError.Code.UNAUTHORIZED -> HttpStatus.UNAUTHORIZED
+        ApiError.Code.FORBIDDEN -> HttpStatus.FORBIDDEN
+        ApiError.Code.EVENT_NOT_FOUND, ApiError.Code.USER_NOT_FOUND -> HttpStatus.NOT_FOUND
+        ApiError.Code.REGISTRATION_CLOSED,
+        ApiError.Code.INVALID_EVENT_STATE,
+        ApiError.Code.EVENT_FULL,
+        ApiError.Code.CAPACITY_BELOW_PARTICIPANTS,
+        ApiError.Code.ORGANIZER_CANNOT_LEAVE,
+        ApiError.Code.SCHEDULE_CONFLICT,
+        -> HttpStatus.CONFLICT
+        ApiError.Code.INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR
+    }
 
     fun error(): ApiError = ApiError(code, message.orEmpty(), details)
 }

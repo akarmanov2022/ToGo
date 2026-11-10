@@ -30,6 +30,9 @@
 		<java.version>21</java.version>
 		<kotlin.version>2.2.0</kotlin.version>
 		<openapi-generator.version>7.27.0</openapi-generator.version>
+		<kover.version>0.9.11</kover.version>
+		<ktlint-plugin.version>3.7.1</ktlint-plugin.version>
+		<detekt-plugin.version>1.23.8</detekt-plugin.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -47,6 +50,10 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security-oauth2-resource-server</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -178,6 +185,99 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+			<plugin>
+				<groupId>com.github.gantsign.maven</groupId>
+				<artifactId>ktlint-maven-plugin</artifactId>
+				<version>${ktlint-plugin.version}</version>
+				<executions>
+					<execution>
+						<id>ktlint</id>
+						<goals>
+							<goal>check</goal>
+						</goals>
+					</execution>
+				</executions>
+				<configuration>
+					<sourcesExcludes>
+						<sourcesExclude>itmo/goto/generated/**</sourcesExclude>
+					</sourcesExcludes>
+					<reporters>
+						<reporter>
+							<name>plain</name>
+						</reporter>
+						<reporter>
+							<name>checkstyle</name>
+							<output>${project.build.directory}/ktlint/report.xml</output>
+						</reporter>
+					</reporters>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>com.github.ozsie</groupId>
+				<artifactId>detekt-maven-plugin</artifactId>
+				<version>${detekt-plugin.version}</version>
+				<executions>
+					<execution>
+						<id>detekt</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+					</execution>
+				</executions>
+				<configuration>
+					<input>${project.basedir}/src/main/kotlin,${project.basedir}/src/test/kotlin</input>
+					<config>${project.basedir}/detekt.yml</config>
+					<buildUponDefaultConfig>true</buildUponDefaultConfig>
+					<report>
+						<report>html:${project.build.directory}/detekt/report.html</report>
+						<report>sarif:${project.build.directory}/detekt/report.sarif</report>
+					</report>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.jetbrains.kotlinx</groupId>
+				<artifactId>kover-maven-plugin</artifactId>
+				<version>${kover.version}</version>
+				<executions>
+					<execution>
+						<id>kover</id>
+						<goals>
+							<goal>instrumentation</goal>
+							<goal>report-xml</goal>
+							<goal>report-html</goal>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
+				<configuration>
+					<filters>
+						<excludes>
+							<classes>
+								<class>itmo.goto.generated.*</class>
+								<class>itmo.goto.GotoApplicationKt</class>
+							</classes>
+						</excludes>
+					</filters>
+					<rules>
+						<rule>
+							<groupBy>APPLICATION</groupBy>
+							<bounds>
+								<bound>
+									<coverageUnits>LINE</coverageUnits>
+									<aggregationForGroup>COVERED_PERCENTAGE</aggregationForGroup>
+									<minValue>80</minValue>
+								</bound>
+								<bound>
+									<coverageUnits>BRANCH</coverageUnits>
+									<aggregationForGroup>COVERED_PERCENTAGE</aggregationForGroup>
+									<minValue>80</minValue>
+								</bound>
+							</bounds>
+						</rule>
+					</rules>
+				</configuration>
 			</plugin>
 			<plugin>
 				<groupId>org.jetbrains.kotlin</groupId>

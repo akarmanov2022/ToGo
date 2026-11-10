@@ -3,6 +3,7 @@ package itmo.goto.service
 import itmo.goto.generated.api.EventsApiService
 import itmo.goto.generated.model.CreateEventRequest
 import itmo.goto.generated.model.Event
+import itmo.goto.generated.model.EventCategory
 import itmo.goto.generated.model.EventPage
 import itmo.goto.generated.model.EventState
 import itmo.goto.generated.model.ParticipantPage
@@ -21,7 +22,7 @@ class EventsService : EventsApiService {
 
     override fun getEvents(
         query: String?,
-        categoryId: UUID?,
+        category: EventCategory?,
         startsFrom: OffsetDateTime?,
         startsTo: OffsetDateTime?,
         state: EventState?,
@@ -29,8 +30,7 @@ class EventsService : EventsApiService {
         hasFreePlaces: Boolean,
         limit: Int,
         offset: Int,
-    ): EventPage =
-        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Event listing is not implemented yet")
+    ): EventPage = throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Event listing is not implemented yet")
 
     override fun getEvent(eventId: UUID): Event =
         throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Event details are not implemented yet")

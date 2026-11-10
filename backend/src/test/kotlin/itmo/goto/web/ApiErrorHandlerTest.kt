@@ -1,5 +1,6 @@
 package itmo.goto.web
 
+import itmo.goto.generated.model.EventCategory
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -13,19 +14,27 @@ import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.random.Random
 
-@WebMvcTest(ProbeController::class)
+@WebMvcTest(ProbeController::class, MethodProbeController::class)
 @AutoConfigureMockMvc(addFilters = false)
 class ApiErrorHandlerTest(@Autowired private val mvc: MockMvcTester) {
     @Test
     fun `invalid body field answers bad request`() {
-        assertThat(mvc.post().uri("/probe/events").contentType(MediaType.APPLICATION_JSON).content(event(maximum = Random.nextInt(51, 999))))
+        assertThat(
+            mvc.post().uri(
+                "/probe/events",
+            ).contentType(MediaType.APPLICATION_JSON).content(event(maximum = Random.nextInt(51, 999))),
+        )
             .withFailMessage("Invalid body field doesnt answer 400")
             .hasStatus(HttpStatus.BAD_REQUEST)
     }
 
     @Test
     fun `invalid body field is named in details`() {
-        assertThat(mvc.post().uri("/probe/events").contentType(MediaType.APPLICATION_JSON).content(event(maximum = Random.nextInt(51, 999))))
+        assertThat(
+            mvc.post().uri(
+                "/probe/events",
+            ).contentType(MediaType.APPLICATION_JSON).content(event(maximum = Random.nextInt(51, 999))),
+        )
             .bodyJson()
             .extractingPath("$.details[0].field")
             .withFailMessage("Invalid body field isnt named in details")
@@ -36,7 +45,11 @@ class ApiErrorHandlerTest(@Autowired private val mvc: MockMvcTester) {
     fun `unknown body field gives validation error`() {
         assertThat(
             mvc.post().uri("/probe/events").contentType(MediaType.APPLICATION_JSON)
-                .content(event(maximum = Random.nextInt(1, 50)).replaceFirst("{", """{"organizerId":"${UUID.randomUUID()}",""")),
+                .content(
+                    event(
+                        maximum = Random.nextInt(1, 50),
+                    ).replaceFirst("{", """{"organizerId":"${UUID.randomUUID()}","""),
+                ),
         )
             .bodyJson()
             .extractingPath("$.code")
@@ -48,7 +61,9 @@ class ApiErrorHandlerTest(@Autowired private val mvc: MockMvcTester) {
     fun `missing required field is named in details`() {
         assertThat(
             mvc.post().uri("/probe/events").contentType(MediaType.APPLICATION_JSON)
-                .content(event(maximum = Random.nextInt(1, 50)).replace(Regex(""""registrationClosesAt":"[^"]+","""), "")),
+                .content(
+                    event(maximum = Random.nextInt(1, 50)).replace(Regex(""""registrationClosesAt":"[^"]+","""), ""),
+                ),
         )
             .bodyJson()
             .extractingPath("$.details[0].field")
@@ -58,7 +73,11 @@ class ApiErrorHandlerTest(@Autowired private val mvc: MockMvcTester) {
 
     @Test
     fun `malformed json gives validation error`() {
-        assertThat(mvc.post().uri("/probe/events").contentType(MediaType.APPLICATION_JSON).content("{\"title\": ${Random.nextInt()}"))
+        assertThat(
+            mvc.post().uri(
+                "/probe/events",
+            ).contentType(MediaType.APPLICATION_JSON).content("{\"title\": ${Random.nextInt()}"),
+        )
             .bodyJson()
             .extractingPath("$.code")
             .withFailMessage("Malformed JSON doesnt give VALIDATION_ERROR")
@@ -81,6 +100,84 @@ class ApiErrorHandlerTest(@Autowired private val mvc: MockMvcTester) {
             .extractingPath("$.details[0].field")
             .withFailMessage("Parameter out of range isnt named in details")
             .isEqualTo("limit")
+    }
+
+    @Test
+    fun `invalid array element is named with its index`() {
+        assertThat(
+            mvc.post().uri("/probe/profile").contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"Имя ${Random.nextInt()}","categories":["SPORT_${Random.nextInt()}"]}"""),
+        )
+            .bodyJson()
+            .extractingPath("$.details[0].field")
+            .withFailMessage("Invalid array element isnt named with its index")
+            .isEqualTo("categories[0]")
+    }
+
+    @Test
+    fun `unknown category is named in details`() {
+        assertThat(
+            mvc.post().uri("/probe/events").contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    event(
+                        maximum = Random.nextInt(1, 50),
+                    ).replace(Regex(""""category":"[A-Z_]+""""), """"category":"SPORT_${Random.nextInt()}""""),
+                ),
+        )
+            .bodyJson()
+            .extractingPath("$.details[0].field")
+            .withFailMessage("Unknown category isnt named in details")
+            .isEqualTo("category")
+    }
+
+    @Test
+    fun `missing parameter is named in details`() {
+        assertThat(mvc.get().uri("/probe/page"))
+            .bodyJson()
+            .extractingPath("$.details[0].field")
+            .withFailMessage("Missing parameter isnt named in details")
+            .isEqualTo("limit")
+    }
+
+    @Test
+    fun `parameter rejected by spring method validation is named in details`() {
+        assertThat(mvc.get().uri("/probe/method/page").param("limit", Random.nextInt(101, 9999).toString()))
+            .bodyJson()
+            .extractingPath("$.details[0].field")
+            .withFailMessage("Parameter rejected by Spring method validation isnt named in details")
+            .isEqualTo("limit")
+    }
+
+    @Test
+    fun `unsupported method answers with its client error`() {
+        assertThat(mvc.delete().uri("/probe/page").param("limit", Random.nextInt(1, 100).toString()))
+            .withFailMessage("Unsupported method doesnt answer 405")
+            .hasStatus(HttpStatus.METHOD_NOT_ALLOWED)
+    }
+
+    @Test
+    fun `unsupported method gives validation error`() {
+        assertThat(mvc.delete().uri("/probe/page").param("limit", Random.nextInt(1, 100).toString()))
+            .bodyJson()
+            .extractingPath("$.code")
+            .withFailMessage("Unsupported method doesnt give VALIDATION_ERROR")
+            .isEqualTo("VALIDATION_ERROR")
+    }
+
+    @Test
+    fun `server error from spring keeps its status`() {
+        assertThat(mvc.get().uri("/probe/unavailable"))
+            .withFailMessage("Server error from Spring doesnt keep 501")
+            .hasStatus(HttpStatus.NOT_IMPLEMENTED)
+    }
+
+    @Test
+    fun `server error from spring gives internal error`() {
+        assertThat(mvc.get().uri("/probe/unavailable"))
+            .bodyJson()
+            .extractingPath("$.code")
+            .withFailMessage("Server error from Spring doesnt give INTERNAL_ERROR")
+            .isEqualTo("INTERNAL_ERROR")
     }
 
     @Test
@@ -135,9 +232,10 @@ class ApiErrorHandlerTest(@Autowired private val mvc: MockMvcTester) {
     private fun event(maximum: Int): String {
         val closes = OffsetDateTime.now(ZoneOffset.UTC).plusDays(Random.nextLong(1, 30))
         return """
-            {"title":"Событие ${Random.nextInt()}","location":"Место ${Random.nextInt()}",
+            {"title":"Событие ${Random.nextInt()}","description":"Описание ${Random.nextInt()}",
+             "location":"Место ${Random.nextInt()}",
              "registrationClosesAt":"$closes","startsAt":"${closes.plusHours(1)}","endsAt":"${closes.plusHours(3)}",
-             "minUsers":1,"maxUsers":$maximum,"categoryIds":["${UUID.randomUUID()}"]}
+             "minUsers":1,"maxUsers":$maximum,"category":"${EventCategory.entries.random()}"}
         """.trimIndent().replace("\n", "")
     }
 }

@@ -1,5 +1,6 @@
 package itmo.goto
 
+import itmo.goto.generated.model.EventCategory
 import org.springframework.jdbc.core.JdbcTemplate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
@@ -11,38 +12,69 @@ import kotlin.random.Random
  * without going through entities or services.
  */
 class Rows(private val jdbc: JdbcTemplate) {
-    fun user(): UUID =
-        jdbc.queryForObject(
-            "INSERT INTO users (tg_id, name) VALUES (?, ?) RETURNING id",
-            UUID::class.java,
-            Random.nextLong(1, Long.MAX_VALUE),
-            "Пользователь ${Random.nextInt()}",
-        )!!
+    fun user(): UUID = jdbc.queryForObject(
+        "INSERT INTO users (tg_id, name) VALUES (?, ?) RETURNING id",
+        UUID::class.java,
+        Random.nextLong(1, Long.MAX_VALUE),
+        "Пользователь ${Random.nextInt()}",
+    )!!
+
+    fun user(id: UUID, tg: Long, login: String?): UUID = jdbc.queryForObject(
+        "INSERT INTO users (id, tg_id, tg_login, name) VALUES (?, ?, ?, ?) RETURNING id",
+        UUID::class.java,
+        id,
+        tg,
+        login,
+        "Пользователь ${Random.nextInt()}",
+    )!!
 
     fun event(
         closes: OffsetDateTime = OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(Random.nextLong(10, 600)),
         starts: OffsetDateTime = closes.plusMinutes(Random.nextLong(0, 600)),
         ends: OffsetDateTime = starts.plusMinutes(Random.nextLong(1, 600)),
         maximum: Int = Random.nextInt(2, 51),
-        latitude: Double? = null,
-        longitude: Double? = null,
-    ): UUID =
-        jdbc.queryForObject(
-            """
+        point: Pair<Double?, Double?> = null to null,
+    ): UUID = jdbc.queryForObject(
+        """
             INSERT INTO events (starts_at, ends_at, registration_closes_at, title, description, location, state,
-                                min_users, max_users, participants_count, organizer_id, latitude, longitude)
-            VALUES (?, ?, ?, ?, '', ?, 'recruiting', 1, ?, 1, ?, ?, ?)
+                                min_users, max_users, participants_count, organizer_id, latitude, longitude, category)
+            VALUES (?, ?, ?, ?, ?, ?, 'recruiting', 1, ?, 1, ?, ?, ?, ?)
             RETURNING id
-            """.trimIndent(),
-            UUID::class.java,
-            starts,
-            ends,
-            closes,
-            "Событие ${Random.nextInt()}",
-            "Место ${Random.nextInt()}",
-            maximum,
-            user(),
-            latitude,
-            longitude,
-        )!!
+        """.trimIndent(),
+        UUID::class.java,
+        starts,
+        ends,
+        closes,
+        "Событие ${Random.nextInt()}",
+        "Описание ${Random.nextInt()}",
+        "Место ${Random.nextInt()}",
+        maximum,
+        user(),
+        point.first,
+        point.second,
+        EventCategory.entries.random().name,
+    )!!
+
+    fun event(organizer: UUID, state: String): UUID = event().also {
+        jdbc.update("UPDATE events SET organizer_id = ?, state = ? WHERE id = ?", organizer, state, it)
+    }
+
+    fun participant(event: UUID, user: UUID): UUID = jdbc.queryForObject(
+        "INSERT INTO event_users (event_id, user_id) VALUES (?, ?) RETURNING id",
+        UUID::class.java,
+        event,
+        user,
+    )!!
+
+    fun interest(user: UUID, category: String): Int =
+        jdbc.update("INSERT INTO user_categories (user_id, category) VALUES (?, ?)", user, category)
+
+    fun notification(user: UUID, event: UUID, kind: String): UUID = jdbc.queryForObject(
+        "INSERT INTO notifications (user_id, event_id, kind, due_at) VALUES (?, ?, ?, ?) RETURNING id",
+        UUID::class.java,
+        user,
+        event,
+        kind,
+        OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(Random.nextLong(1, 600)),
+    )!!
 }
