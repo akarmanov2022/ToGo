@@ -25,7 +25,7 @@ docker compose -f infra/docker-compose.yml up -d    # local PostgreSQL on 5432 (
 ./backend/mvnw -f backend/pom.xml compile            # regenerates API interfaces from api/openapi.yaml
 ./backend/mvnw -f backend/pom.xml verify             # full build and all tests, the check before declaring work done
 ./backend/mvnw -f backend/pom.xml test -Dtest=MigrationTest
-./backend/mvnw -f backend/pom.xml spring-boot:run    # serves on :8080
+TELEGRAM_BOT_TOKEN=<token> ./backend/mvnw -f backend/pom.xml spring-boot:run    # serves on :8080
 ```
 
 Frontend (run inside `frontend/`):
@@ -58,14 +58,21 @@ Services load JPA entities, call the domain, and persist the result.
 Time always comes from the injected `java.time.Clock` bean (`ClockConfiguration`, UTC), so tests fix the clock instead of waiting.
 Join and leave lock the event row with `@Lock(PESSIMISTIC_WRITE)`, read the time after acquiring the lock, and keep the denormalized `events.participants_count` in sync (decision 6).
 
+Authentication lives in `itmo.goto.auth`.
+`TelegramLaunch` is a framework-free check of Mini App `initData` against `TELEGRAM_BOT_TOKEN` and the `Clock`.
+`AccessTokens` issues one-hour HS256 JWTs whose key is derived from the bot token, and `SecurityConfiguration` accepts only those Bearer tokens.
+Services learn the caller through the `Identity` bean, never through `SecurityContextHolder` directly.
+
 The schema is defined only by Flyway migrations in `backend/src/main/resources/db/migration`; primary keys use PostgreSQL 18 `uuidv7()`.
-`model/User.kt` is a stale scaffold: it has no package declaration and its columns do not match the migrated `users` table.
+JPA entities live in `itmo.goto.model` and Spring Data repositories in `itmo.goto.repository`.
 
 ## Backend tests
 
 - Repository and migration tests use `@DataJpaTest` with `@Import(PostgresConfiguration::class)`, a real PostgreSQL 18 container shared through the cached Spring context. H2 is deliberately absent because row locks and `uuidv7()` behave differently.
 - `Rows` inserts raw rows through `JdbcTemplate` to probe schema constraints without entities.
 - Web tests are `@WebMvcTest` slices; `web/ProbeController` is a test-only controller that triggers each failure kind for `ApiErrorHandler`.
+- `auth/SignedLaunch` signs launch data the way Telegram does, so tests can send genuine, stale, or tampered `initData`.
+- `DemoProfileTest` is the only full-context test: it starts the whole application to prove the `demo` profile cannot bypass Telegram login.
 - Tests follow one style: backtick sentence names, one AssertJ assertion per test passed through a negative `withFailMessage`, random inputs from `kotlin.random.Random`, and `@TestBean` to replace the `Clock`.
 - Logging is turned off in `src/test/resources/logback-test.xml`.
 
