@@ -1,9 +1,25 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, useId } from 'vue'
 import { localDate } from './dates'
-const props = defineProps<{ modelValue: string; min: string; max?: string }>()
+const props = withDefaults(
+  defineProps<{
+    modelValue: string
+    min: string
+    max?: string
+    label?: string
+    invalid?: boolean
+    describedBy?: string
+  }>(),
+  { label: 'Дата', invalid: false, max: undefined, describedBy: undefined },
+)
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 const open = ref(false)
+const id = useId()
+const root = ref<HTMLElement | null>(null)
+const trigger = ref<HTMLButtonElement | null>(null)
+const display = computed(() =>
+  props.modelValue ? props.modelValue.split('-').reverse().join('.') : 'Выбрать дату',
+)
 const month = ref(new Date(`${props.modelValue || props.min}T12:00:00`))
 const title = computed(() =>
   month.value.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }),
@@ -27,8 +43,16 @@ function shift(delta: number) {
   month.value = new Date(month.value.getFullYear(), month.value.getMonth() + delta, 1, 12)
 }
 function choose(value: string) {
+  if (value && (value < props.min || Boolean(props.max && value > props.max))) return
   emit('update:modelValue', value)
+  close()
+}
+function close() {
   open.value = false
+  trigger.value?.focus()
+}
+function leave(event: FocusEvent) {
+  if (!root.value?.contains(event.relatedTarget as Node | null)) open.value = false
 }
 function toggle() {
   if (!open.value) month.value = new Date(`${props.modelValue || props.min}T12:00:00`)
@@ -36,11 +60,33 @@ function toggle() {
 }
 </script>
 <template>
-  <div class="calendar" @keydown.esc.stop.prevent="open = false">
-    <button type="button" class="calendar-toggle" :aria-expanded="open" @click="toggle">
-      ▦ Открыть календарь
+  <div ref="root" class="calendar" @keydown.esc.stop.prevent="close" @focusout="leave">
+    <button
+      ref="trigger"
+      type="button"
+      class="calendar-toggle"
+      :aria-label="`${label}: ${display}`"
+      :aria-expanded="open"
+      :aria-controls="id"
+      :aria-invalid="invalid"
+      :aria-describedby="describedBy"
+      @click="toggle"
+    >
+      <span :class="{ placeholder: !modelValue }">{{ display }}</span>
+      <svg
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.7"
+        aria-hidden="true"
+      >
+        <rect x="3" y="5" width="18" height="16" rx="3" />
+        <path d="M7 2v6M17 2v6M3 11h18" />
+      </svg>
     </button>
-    <div v-if="open" class="calendar-panel" aria-label="Выбор даты">
+    <div v-if="open" :id="id" class="calendar-panel" role="group" :aria-label="label">
       <div class="calendar-header">
         <button
           type="button"
@@ -79,20 +125,53 @@ function toggle() {
           {{ day.day }}
         </button>
       </div>
+      <button type="button" class="calendar-clear" :disabled="!modelValue" @click="choose('')">
+        Очистить
+      </button>
     </div>
   </div>
 </template>
 <style scoped>
 .calendar {
-  margin-top: 8px;
   font-size: 12px;
 }
 .calendar-toggle {
-  border: 0;
-  background: #dce8ff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 43px;
+  border: 1px solid #dcc8ee;
+  background: #fff;
   color: #292657;
-  padding: 7px 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.placeholder {
+  color: #77718d;
+  font-weight: 400;
+}
+.calendar-toggle[aria-invalid='true'] {
+  border-color: #b42318;
+}
+.calendar-clear {
+  margin-top: 10px;
+  border: 0;
+  background: #fdf6fa;
+  color: #47456d;
   border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 12px;
+}
+.calendar-clear:disabled {
+  opacity: 0.4;
+}
+.calendar button:focus-visible {
+  outline: 2px solid #a63872;
+  outline-offset: 3px;
 }
 .calendar-panel {
   margin-top: 8px;

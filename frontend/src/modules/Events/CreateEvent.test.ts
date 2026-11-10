@@ -27,11 +27,16 @@ it('binds all three schedule values independently in the creation form', async (
   try {
     const schedule = wrapper.findComponent(EventSchedule)
     expect(schedule.props('modelValue')).toEqual(emptySchedule())
-    const dates = schedule.findAll('input[type=date]')
-    const times = schedule.findAll('input[type=time]')
+    const fields = schedule.findAll('fieldset')
     for (let index = 0; index < 3; index++) {
-      await dates[index]!.setValue('2026-11-11')
-      await times[index]!.setValue(['18:00', '21:00', '15:00'][index])
+      const field = fields[index]!
+      await field.get('.calendar-toggle').trigger('click')
+      await field.get('button[aria-label="2026-11-11"]').trigger('click')
+      await field.get('.time-trigger').trigger('click')
+      const timeParts = field.findAll('.time-number')
+      await timeParts[0]!.setValue(String([18, 21, 15][index]))
+      await timeParts[1]!.setValue('00')
+      await field.get('.time-apply').trigger('click')
     }
     const timestamp = (time: string) => toScheduleTimestamp({ date: '2026-11-11', time })
     expect(schedule.props('modelValue')).toEqual({

@@ -130,7 +130,9 @@ function run(event: EventDto) {
         </p>
       </div>
     </div>
-    <AppField v-model="search" class="search" label="Поиск по названию" type="search" />
+    <div class="search-panel">
+      <AppField v-model="search" class="search" label="Поиск по названию" type="search" />
+    </div>
     <p v-if="actionError" class="error" role="alert">{{ actionError }}</p>
     <p v-if="feed.isPending.value" class="state"><LoadingText label="Загружаем события" /></p>
     <div v-else-if="feed.isError.value && !feed.data.value" class="state">
@@ -213,7 +215,9 @@ function run(event: EventDto) {
 }
 .search {
   max-width: 360px;
-  margin-bottom: 20px;
+}
+.search-panel {
+  margin-bottom: 36px;
 }
 .hint {
   font-size: 12px;

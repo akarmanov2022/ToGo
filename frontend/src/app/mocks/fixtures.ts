@@ -22,7 +22,7 @@ export const currentUser: CurrentUser = {
   id: '019a0000-0000-7000-8000-000000000101',
   tgId: 100001,
   tgLogin: 'local_demo',
-  name: 'Алексей (локальный профиль)',
+  name: 'Алексей',
   photoUrl: null,
   city: 'Санкт-Петербург',
   categories: ['BOARD_GAMES'],
@@ -33,7 +33,7 @@ export const currentUser: CurrentUser = {
 export const otherUser: UserProfile = {
   id: '019a0000-0000-7000-8000-000000000102',
   tgLogin: 'local_organizer',
-  name: 'Мария (локальный профиль)',
+  name: 'Мария',
   photoUrl: null,
   city: 'Санкт-Петербург',
   categories: ['EXCURSION'],
