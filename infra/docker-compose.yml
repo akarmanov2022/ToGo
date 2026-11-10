@@ -26,6 +26,7 @@ services:
     container_name: togo-backend
     environment:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?Задайте токен TELEGRAM_BOT_TOKEN}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:?Задайте TELEGRAM_WEBHOOK_SECRET}
       SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/togo
       SPRING_DATASOURCE_USERNAME: ${DB_USER:-admin}
@@ -43,8 +44,7 @@ services:
       context: ../frontend
       dockerfile: Dockerfile
       args:
-        # Временно для dev-togo.ru: вход без Telegram в тестовый профиль.
-        # После подключения Telegram: FRONTEND_MODE=production и пересборка образа.
+        # Публичное демо вне Telegram; внутри Telegram используется настоящий API.
         FRONTEND_MODE: ${FRONTEND_MODE:-demo}
     image: togo-frontend:local
     container_name: togo-frontend

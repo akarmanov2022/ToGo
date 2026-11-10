@@ -4,6 +4,29 @@
  */
 
 export interface paths {
+    "/api/v1/bot/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Принять обновление бота от Telegram
+         * @description Telegram присылает обновление по HTTPS. Сервер сравнивает заголовок
+         *     X-Telegram-Bot-Api-Secret-Token с TELEGRAM_WEBHOOK_SECRET и отвечает
+         *     на команду /start в личном чате приветствием с кнопкой Mini App.
+         *     Остальные обновления подтверждаются без действия.
+         */
+        post: operations["receiveBotUpdate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/telegram": {
         parameters: {
             query?: never;
@@ -647,6 +670,42 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    receiveBotUpdate: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Telegram-Bot-Api-Secret-Token": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Обновление принято */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Секрет webhook не совпадает (FORBIDDEN) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            500: components["responses"]["UnexpectedError"];
+        };
+    };
     authenticateTelegram: {
         parameters: {
             query?: never;

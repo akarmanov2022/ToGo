@@ -21,7 +21,12 @@ import kotlin.random.Random
 /**
  * Runs the whole application in the demo profile, which may change data but never the way users sign in.
  */
-@SpringBootTest(properties = ["telegram.bot-token=7000000003:AAdemo-profile-test-token"])
+@SpringBootTest(
+    properties = [
+        "telegram.bot-token=7000000003:AAdemo-profile-test-token",
+        "telegram.webhook-secret=demo-profile-test-secret",
+    ],
+)
 @AutoConfigureMockMvc
 @ActiveProfiles("demo")
 @Import(PostgresConfiguration::class)
