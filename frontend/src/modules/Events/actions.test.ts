@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { components } from '@/common/api/schema'
-import { cardAction, isVisibleInFeed, stateLabel } from './actions'
+import { cardAction, isVisibleInFeed } from './actions'
+import { stateLabel } from './rules'
 
 type Event = components['schemas']['Event']
 

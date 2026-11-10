@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/vue-query'
 import { configureApiSession } from '@/common/api/client'
-import { useAuthStore } from '@/modules/Auth'
+import { currentUserKey, useAuthStore } from '@/modules/Auth'
 
 export function bindApiSession(auth: ReturnType<typeof useAuthStore>, queryClient: QueryClient) {
   configureApiSession({
@@ -10,6 +10,8 @@ export function bindApiSession(auth: ReturnType<typeof useAuthStore>, queryClien
   return auth.$subscribe(
     (_mutation, state) => {
       if (state.status === 'expired') queryClient.clear()
+      if (state.status === 'authenticated' && state.user)
+        queryClient.setQueryData(currentUserKey(state.user.id), state.user)
     },
     { flush: 'sync', detached: true },
   )

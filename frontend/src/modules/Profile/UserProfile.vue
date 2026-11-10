@@ -8,6 +8,7 @@ import AppChip from '@/common/ui/AppChip.vue'
 import AppField from '@/common/ui/AppField.vue'
 import ChipGroup from '@/common/ui/ChipGroup.vue'
 import LoadingText from '@/common/ui/LoadingText.vue'
+import { currentUserKey, useAuthStore } from '@/modules/Auth'
 import {
   EventCard,
   fetchCategories,
@@ -18,16 +19,11 @@ import {
   isVisibleInFeed,
   type EventDto,
 } from '@/modules/Events'
-import {
-  avatarLetter,
-  fetchCurrentUser,
-  fetchUserProfile,
-  updateCurrentUser,
-  type CurrentUser,
-  type UserProfile,
-} from './api'
+import { avatarLetter, updateCurrentUser } from './api'
+import { useProfile } from './useProfile'
 
 const props = defineProps<{ userId?: string }>()
+const auth = useAuthStore()
 const queryClient = useQueryClient()
 const isOwn = computed(() => !props.userId)
 
@@ -39,16 +35,13 @@ watch(isOwn, () => {
   tab.value = tabs.value[0]
 })
 
-const profileQuery = useQuery({
-  queryKey: computed(() => (props.userId ? ['users', props.userId] : ['current-user'])),
-  queryFn: () => (props.userId ? fetchUserProfile(props.userId) : fetchCurrentUser()),
-})
+const profileQuery = useProfile(() => props.userId)
 const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
 const categoryNames = computed(
   () => new Map((categoriesQuery.data.value ?? []).map((item) => [item.code, item.name])),
 )
 
-const profile = computed(() => profileQuery.data.value as CurrentUser | UserProfile | undefined)
+const profile = profileQuery.data
 
 const editing = ref(false)
 const name = ref('')
@@ -71,14 +64,17 @@ async function saveProfile() {
   saveError.value = ''
   saving.value = true
   try {
-    await updateCurrentUser({
+    const saved = await updateCurrentUser({
       name: name.value.trim(),
       city: city.value.trim() ? city.value.trim() : null,
       // Поле пока обязательно в PUT-контракте, но больше не редактируется в UI.
       categories: [...profile.value.categories],
     })
+    // Поздний ответ старой сессии не должен восстанавливать очищенный приватный кеш.
+    if (auth.status !== 'authenticated' || auth.user?.id !== saved.id) return
+    queryClient.setQueryData(currentUserKey(saved.id), saved)
     editing.value = false
-    await queryClient.invalidateQueries({ queryKey: ['current-user'] })
+    await queryClient.invalidateQueries({ queryKey: ['users', saved.id] })
   } catch (error) {
     saveError.value = error instanceof ApiError ? error.message : 'Не удалось сохранить профиль'
   } finally {

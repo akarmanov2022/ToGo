@@ -15,7 +15,7 @@ import {
 } from './api'
 import { formatStart, participantsLine } from './format'
 import { availableActions, stateLabel } from './rules'
-import { creationCategories } from './creation'
+import { eventCategories } from './categories'
 import EventEditor from './EventEditor.vue'
 import EventComments from './EventComments.vue'
 import { cardAction } from './actions'
@@ -223,7 +223,7 @@ const busy = computed(
             v-if="editOpen && actions?.canEdit"
             :key="event.id"
             :event="event"
-            :categories="categoriesQuery.data.value ?? creationCategories"
+            :categories="categoriesQuery.data.value ?? eventCategories"
             @saved="saved"
             @cancel="editOpen = false"
           />

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useId, watch } from 'vue'
-import { usePopover } from '@/modules/EventSchedule'
+import { usePopover } from '@/common/composables/usePopover'
 import type { Category, EventCategory } from './api'
 
 const props = withDefaults(

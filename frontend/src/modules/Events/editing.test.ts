@@ -68,4 +68,15 @@ describe('редактор события', () => {
       validateEdit({ ...editDraft(event), description: 'x'.repeat(501) }, event, now),
     ).toHaveProperty('description')
   })
+
+  it('не заставляет исправлять прежние название и иконку при изменении других полей', () => {
+    const original = { ...event, title: 'Настолки: вечер!', icon: 'legacy' }
+    expect(validateEdit(editDraft(original), original, now)).toEqual({})
+    expect(validateEdit({ ...editDraft(original), title: 'Новое!' }, original, now)).toHaveProperty(
+      'title',
+    )
+    expect(validateEdit({ ...editDraft(original), icon: 'new' }, original, now)).toHaveProperty(
+      'icon',
+    )
+  })
 })

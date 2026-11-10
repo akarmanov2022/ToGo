@@ -3,6 +3,8 @@ import prettier from 'eslint-config-prettier'
 import vue from 'eslint-plugin-vue'
 import globals from 'globals'
 import tseslint from 'typescript-eslint'
+import { fileURLToPath } from 'node:url'
+import { configFromProject } from '@o-feod/eslint-structure-plugin'
 
 export default tseslint.config(
   {
@@ -21,5 +23,12 @@ export default tseslint.config(
     languageOptions: { parserOptions: { parser: tseslint.parser } },
   },
   { languageOptions: { globals: { ...globals.browser, ...globals.node } } },
+  {
+    ...configFromProject({
+      rootDir: fileURLToPath(new URL('.', import.meta.url)),
+      preset: 'strict',
+    }),
+    files: ['src/**/*.{ts,vue}'],
+  },
   prettier,
 )

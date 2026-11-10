@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, useId } from 'vue'
-import { usePopover } from './popover'
+import { usePopover } from '@/common/composables/usePopover'
 
 const props = withDefaults(
   defineProps<{

@@ -1,7 +1,7 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, watch, type Ref } from 'vue'
 
 /**
- * Раскрывает панель пикера поверх вёрстки, а не внутри потока:
+ * Раскрывает панель поверх вёрстки, а не внутри потока:
  * удерживает её в пределах экрана и закрывает по касанию или клику вне поля.
  */
 export function usePopover(

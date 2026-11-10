@@ -10,11 +10,13 @@ import LoadingText from '@/common/ui/LoadingText.vue'
 import { useAuthStore } from '@/modules/Auth'
 import { PlacePicker, toCoordinateFields, type MeetingPlace } from '@/modules/Map'
 import { EventSchedule, emptySchedule } from '@/modules/EventSchedule'
-import { creationCategories, creationRestrictions, validateCreation } from './creation'
+import { creationRestrictions, validateCreation } from './creation'
+import { eventCategories } from './categories'
 import { demoPlaces } from './demoPlaces'
 import EventCard from './EventCard.vue'
 import CategorySelect from './CategorySelect.vue'
 import { formatStart } from './format'
+import { createEvent, fetchCategories } from './api'
 
 const props = withDefaults(defineProps<{ places?: MeetingPlace[] }>(), { places: () => demoPlaces })
 const auth = useAuthStore()
@@ -47,10 +49,10 @@ watch(
 )
 const categoryQuery = useQuery({
   queryKey: ['categories'],
-  queryFn: () => apiRequest<components['schemas']['Category'][]>('/api/v1/categories'),
+  queryFn: fetchCategories,
 })
 const categories = computed<components['schemas']['Category'][]>(
-  () => categoryQuery.data.value ?? [...creationCategories],
+  () => categoryQuery.data.value ?? [...eventCategories],
 )
 const participating = useQuery({
   queryKey: computed(() => ['events', 'creation-availability', auth.user?.id]),
@@ -81,20 +83,17 @@ const serverError = ref('')
 const serverDetails = ref<Record<string, string>>({})
 const create = useMutation({
   mutationFn: () =>
-    apiRequest<components['schemas']['Event']>('/api/v1/events', {
-      method: 'POST',
-      body: {
-        title: draft.title.trim(),
-        description: draft.description.trim(),
-        ...(draft.icon.trim() ? { icon: draft.icon.trim() } : {}),
-        category: draft.category as components['schemas']['EventCategory'],
-        location: draft.place!.address,
-        ...toCoordinateFields(draft.place),
-        ...draft.schedule,
-        minUsers: Number(draft.minUsers),
-        maxUsers: Number(draft.maxUsers),
-      } satisfies components['schemas']['CreateEventRequest'],
-    }),
+    createEvent({
+      title: draft.title.trim(),
+      description: draft.description.trim(),
+      ...(draft.icon.trim() ? { icon: draft.icon.trim() } : {}),
+      category: draft.category as components['schemas']['EventCategory'],
+      location: draft.place!.address,
+      ...toCoordinateFields(draft.place),
+      ...draft.schedule,
+      minUsers: Number(draft.minUsers),
+      maxUsers: Number(draft.maxUsers),
+    } satisfies components['schemas']['CreateEventRequest']),
   onSuccess: async () => {
     await queryClient.invalidateQueries({ queryKey: ['events'] })
     await queryClient.invalidateQueries({ queryKey: ['current-user'] })

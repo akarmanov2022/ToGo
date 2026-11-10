@@ -1,6 +1,5 @@
-export { default as LocationPicker } from './LocationPicker.vue'
 export { default as PlacePicker } from './PlacePicker.vue'
 export { default as EventMap } from './EventMap.vue'
 export type { EventMapPoint } from './types'
-export type { Coordinates, MeetingPlace } from './types'
+export type { MeetingPlace } from './types'
 export { toCoordinateFields } from './coordinates'

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
 import { localDate } from './dates'
-import { usePopover } from './popover'
+import { usePopover } from '@/common/composables/usePopover'
 const props = withDefaults(
   defineProps<{
     modelValue: string
