@@ -7,6 +7,16 @@ describe('resolveMockMode', () => {
       resolveMockMode({ dev: false, demo: true, envFlag: undefined, hasInitData: false }),
     ).toBe(true)
   })
+  it('в демо-сборке использует настоящий вход внутри Telegram', () => {
+    expect(
+      resolveMockMode({ dev: false, demo: true, envFlag: undefined, hasInitData: true }),
+    ).toBe(false)
+  })
+  it('в Telegram без initData не открывает тестовый профиль', () => {
+    expect(
+      resolveMockMode({ dev: false, demo: true, envFlag: undefined, hasInitData: false, inTelegram: true }),
+    ).toBe(false)
+  })
   it('в dev без Telegram автоматически включает моки — моковый вход без авторизации', () => {
     expect(resolveMockMode({ dev: true, envFlag: undefined, hasInitData: false })).toBe(true)
   })

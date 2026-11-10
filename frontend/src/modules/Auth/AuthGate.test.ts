@@ -36,6 +36,7 @@ describe('Auth gate', () => {
     })
     expect(wrapper.text()).toContain('protected-content')
     expect(wrapper.text()).not.toContain('Войти в демо')
+    expect(wrapper.text()).not.toContain('Демо-режим MSW')
   })
   it('offers reopen instead of retry on expired session', () => {
     useAuthStore().status = 'expired'
