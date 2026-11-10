@@ -112,8 +112,8 @@ paths:
       summary: Изменить свой профиль
       description: |
         Полностью заменяет имя, город и категории профиля.
-        Пустой массив categoryIds очищает категории, отсутствие city или null удаляет город.
-        Все categoryIds должны существовать в справочнике, иначе 400 CATEGORY_NOT_FOUND.
+        Пустой массив categories очищает категории, отсутствие city или null удаляет город.
+        Категория вне перечня EventCategory — 400 VALIDATION_ERROR.
       requestBody:
         required: true
         content:
@@ -173,8 +173,8 @@ paths:
       operationId: getCategories
       summary: Получить доступные категории
       description: |
-        Полный справочник, отсортированный по name и id.
-        Клиент выбирает categoryIds из этого списка; создавать категории нельзя.
+        Весь перечень EventCategory в порядке объявления: код и название на русском.
+        Клиент выбирает коды из этого списка; создавать категории нельзя.
       responses:
         '200':
           description: Категории
@@ -205,12 +205,11 @@ paths:
           description: Подстрока названия без учёта регистра; крайние пробелы удаляются, пустая строка не фильтрует
           schema:
             type: string
-        - name: categoryId
+        - name: category
           in: query
-          description: События с указанной категорией; неизвестный UUID даёт пустую выдачу
+          description: События с указанной категорией; значение вне перечня даёт 400 VALIDATION_ERROR
           schema:
-            type: string
-            format: uuid
+            $ref: '#/components/schemas/EventCategory'
         - name: startsFrom
           in: query
           description: Нижняя включительная граница времени начала
@@ -262,9 +261,11 @@ paths:
       summary: Создать событие
       description: |
         Сервер назначает UUID, организатора и состояние recruiting.
-        Событие, участие организатора и связи категорий создаются в одной транзакции.
+        Событие и участие организатора создаются в одной транзакции.
         Требуется now < registrationClosesAt <= startsAt < endsAt и 1 <= minUsers <= maxUsers.
-        Все categoryIds должны существовать в справочнике, иначе 400 CATEGORY_NOT_FOUND.
+        Категория вне перечня EventCategory — 400 VALIDATION_ERROR.
+        Если организатор участвует в событии в recruiting или registration_closed,
+        начало которого отстоит от startsAt меньше чем на 3 часа, — 409 SCHEDULE_CONFLICT.
         Операция не идемпотентна: повторный POST создаёт новое событие.
       requestBody:
         required: true
@@ -282,7 +283,7 @@ paths:
               minUsers: 3
               maxUsers: 6
               icon: '🎲'
-              categoryIds: [019a0000-0000-7000-8000-000000000001]
+              category: BOARD_GAMES
       responses:
         '201':
           description: Событие создано, организатор включён в участников
@@ -300,6 +301,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/UnexpectedError'
 
@@ -329,15 +332,15 @@ paths:
       description: |
         Только организатор, только в recruiting и до текущего registrationClosesAt.
         Переданные поля заменяются, отсутствующие сохраняются. Пустой объект и null
-        недопустимы. categoryIds полностью заменяет категории. Пустая строка icon
-        удаляет иконку (в ответе icon: null). Для description пустая строка очищает описание.
+        недопустимы. category заменяет категорию события. Пустая строка icon
+        удаляет иконку (в ответе icon: null). Описание не может стать пустым.
         startsAt, endsAt, location, organizer и state менять нельзя.
         registrationClosesAt можно перенести, пока текущий срок ещё не истёк;
         новый срок должен удовлетворять now < registrationClosesAt <= startsAt.
         Ограничения minUsers/maxUsers проверяются для результата изменения;
         maxUsers нельзя уменьшить ниже participantsCount (409 CAPACITY_BELOW_PARTICIPANTS).
         Закрытый набор — 409 REGISTRATION_CLOSED, отменённое/прошедшее событие —
-        409 INVALID_EVENT_STATE. Неизвестная категория — 400 CATEGORY_NOT_FOUND.
+        409 INVALID_EVENT_STATE. Категория вне перечня — 400 VALIDATION_ERROR.
       requestBody:
         required: true
         content:
@@ -430,7 +433,9 @@ paths:
         now < registrationClosesAt и participantsCount < maxUsers.
         Сначала проверяется состояние, затем вместимость. Закрытый набор —
         409 REGISTRATION_CLOSED; отменённое/прошедшее событие — 409 INVALID_EVENT_STATE;
-        отсутствие мест — 409 EVENT_FULL. Проверка и добавление атомарны.
+        отсутствие мест — 409 EVENT_FULL. Участие в событии в recruiting или
+        registration_closed, начало которого отстоит меньше чем на 3 часа, —
+        409 SCHEDULE_CONFLICT. Проверка и добавление атомарны.
       responses:
         '200':
           $ref: '#/components/responses/EventResponse'
@@ -569,7 +574,7 @@ components:
           schema:
             $ref: '#/components/schemas/Event'
     BadRequest:
-      description: Некорректный JSON, UUID, дата, параметры или бизнес-валидация (VALIDATION_ERROR, CATEGORY_NOT_FOUND)
+      description: Некорректный JSON, UUID, дата, значение перечня, параметры или бизнес-валидация (VALIDATION_ERROR)
       content:
         application/json:
           schema:
@@ -607,7 +612,7 @@ components:
       description: |
         Конфликт с текущим состоянием события. Код зависит от операции:
         REGISTRATION_CLOSED, INVALID_EVENT_STATE, EVENT_FULL,
-        CAPACITY_BELOW_PARTICIPANTS или ORGANIZER_CANNOT_LEAVE.
+        CAPACITY_BELOW_PARTICIPANTS, ORGANIZER_CANNOT_LEAVE или SCHEDULE_CONFLICT.
       content:
         application/json:
           schema:
@@ -655,7 +660,7 @@ components:
 
     CurrentUser:
       type: object
-      required: [id, tgId, tgLogin, name, photoUrl, city, categories]
+      required: [id, tgId, tgLogin, name, photoUrl, city, categories, createdEventsCount, visitedEventsCount]
       properties:
         id:
           type: string
@@ -683,11 +688,21 @@ components:
           type: array
           uniqueItems: true
           items:
-            $ref: '#/components/schemas/Category'
+            $ref: '#/components/schemas/EventCategory'
+        createdEventsCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Число событий, организованных пользователем, в любом состоянии
+        visitedEventsCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Число событий в finished, в которых пользователь участвовал, включая организованные им
 
     UserProfile:
       type: object
-      required: [id, tgLogin, name, photoUrl, city, categories]
+      required: [id, tgLogin, name, photoUrl, city, categories, createdEventsCount, visitedEventsCount]
       description: Профиль другого пользователя без Telegram ID
       properties:
         id:
@@ -709,12 +724,22 @@ components:
           type: array
           uniqueItems: true
           items:
-            $ref: '#/components/schemas/Category'
+            $ref: '#/components/schemas/EventCategory'
+        createdEventsCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Число событий, организованных пользователем, в любом состоянии
+        visitedEventsCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Число событий в finished, в которых пользователь участвовал, включая организованные им
 
     UpdateProfileRequest:
       type: object
       additionalProperties: false
-      required: [name, categoryIds]
+      required: [name, categories]
       properties:
         name:
           type: string
@@ -727,12 +752,11 @@ components:
           minLength: 1
           maxLength: 100
           pattern: '[\s\S]*\S[\s\S]*'
-        categoryIds:
+        categories:
           type: array
           uniqueItems: true
           items:
-            type: string
-            format: uuid
+            $ref: '#/components/schemas/EventCategory'
 
     UserSummary:
       type: object
@@ -746,15 +770,30 @@ components:
           nullable: true
           description: Telegram username без @; может отсутствовать и изменяться
 
+    EventCategory:
+      type: string
+      description: |
+        Код категории из фиксированного перечня:
+        PICNIC — «Пикник», RUN — «Пробежка», EXCURSION — «Поход на экскурсию»,
+        BOARD_GAMES — «Настолки», QUEST — «Квест», CINEMA — «Кино», CAFE — «Кафе/Ресторан».
+      enum:
+        - PICNIC
+        - RUN
+        - EXCURSION
+        - BOARD_GAMES
+        - QUEST
+        - CINEMA
+        - CAFE
+
     Category:
       type: object
-      required: [id, name]
+      required: [code, name]
       properties:
-        id:
-          type: string
-          format: uuid
+        code:
+          $ref: '#/components/schemas/EventCategory'
         name:
           type: string
+          description: Название категории на русском
           example: Настолки
 
     EventState:
@@ -790,7 +829,7 @@ components:
         - minUsers
         - maxUsers
         - organizer
-        - categories
+        - category
         - participantsCount
         - availableSlots
         - isParticipant
@@ -845,12 +884,8 @@ components:
           maximum: 50
         organizer:
           $ref: '#/components/schemas/UserSummary'
-        categories:
-          type: array
-          minItems: 1
-          uniqueItems: true
-          items:
-            $ref: '#/components/schemas/Category'
+        category:
+          $ref: '#/components/schemas/EventCategory'
         participantsCount:
           type: integer
           format: int32
@@ -871,7 +906,7 @@ components:
     CreateEventRequest:
       type: object
       additionalProperties: false
-      required: [title, location, startsAt, endsAt, registrationClosesAt, minUsers, maxUsers, categoryIds]
+      required: [title, description, location, startsAt, endsAt, registrationClosesAt, minUsers, maxUsers, category]
       properties:
         title:
           type: string
@@ -881,8 +916,10 @@ components:
           description: Название, содержащее хотя бы один непробельный символ
         description:
           type: string
-          maxLength: 2000
-          default: ''
+          minLength: 1
+          maxLength: 500
+          pattern: '[\s\S]*\S[\s\S]*'
+          description: Описание, содержащее хотя бы один непробельный символ
         location:
           type: string
           minLength: 1
@@ -923,13 +960,8 @@ components:
           minimum: 1
           maximum: 50
           description: Не меньше minUsers; организатор занимает одно место
-        categoryIds:
-          type: array
-          minItems: 1
-          uniqueItems: true
-          items:
-            type: string
-            format: uuid
+        category:
+          $ref: '#/components/schemas/EventCategory'
 
     UpdateEventRequest:
       type: object
@@ -944,7 +976,9 @@ components:
           pattern: '[\s\S]*\S[\s\S]*'
         description:
           type: string
-          maxLength: 2000
+          minLength: 1
+          maxLength: 500
+          pattern: '[\s\S]*\S[\s\S]*'
         registrationClosesAt:
           type: string
           format: date-time
@@ -961,13 +995,8 @@ components:
           format: int32
           minimum: 1
           maximum: 50
-        categoryIds:
-          type: array
-          minItems: 1
-          uniqueItems: true
-          items:
-            type: string
-            format: uuid
+        category:
+          $ref: '#/components/schemas/EventCategory'
 
     EventPage:
       type: object
@@ -1077,12 +1106,12 @@ components:
             - FORBIDDEN
             - EVENT_NOT_FOUND
             - USER_NOT_FOUND
-            - CATEGORY_NOT_FOUND
             - REGISTRATION_CLOSED
             - INVALID_EVENT_STATE
             - EVENT_FULL
             - CAPACITY_BELOW_PARTICIPANTS
             - ORGANIZER_CANNOT_LEAVE
+            - SCHEDULE_CONFLICT
             - INTERNAL_ERROR
         message:
           type: string
@@ -1099,6 +1128,6 @@ components:
       properties:
         field:
           type: string
-          description: Имя поля JSON или параметра запроса, например categoryIds[0]
+          description: Имя поля JSON или параметра запроса, например categories[0]
         message:
           type: string
