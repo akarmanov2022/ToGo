@@ -26,7 +26,7 @@ import itmo.goto.generated.model.Event as Card
  * the schedule conflict rule.
  */
 @Service
-class Creation(
+class EventCreationService(
     private val events: EventRepository,
     private val participations: ParticipationRepository,
     private val users: UserRepository,

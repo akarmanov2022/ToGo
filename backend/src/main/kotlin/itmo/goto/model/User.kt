@@ -3,6 +3,7 @@ package itmo.goto.model
 import itmo.goto.generated.model.CurrentUser
 import itmo.goto.generated.model.EventCategory
 import itmo.goto.generated.model.UserProfile
+import itmo.goto.generated.model.UserSummary
 import jakarta.persistence.CollectionTable
 import jakarta.persistence.Column
 import jakarta.persistence.ElementCollection
@@ -71,4 +72,6 @@ class User(
         created,
         visited,
     )
+
+    fun summary(): UserSummary = UserSummary(checkNotNull(id) { "User has no id before it is saved" }, tgLogin)
 }

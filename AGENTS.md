@@ -47,7 +47,8 @@ Deployment is planned in `tasks.md` section 2.
 The contract drives the server.
 On `generate-sources`, `openapi-generator` (`kotlin-spring`, `serviceInterface=true`, `useTags=true`) writes controllers and one `*ApiService` interface per tag into `itmo.goto.generated.api` and DTOs into `itmo.goto.generated.model`, under `target/generated-sources/openapi`.
 Never edit generated code; change `api/openapi.yaml` first, then implement the regenerated interface.
-Hand-written classes in `itmo.goto.service` (such as `EventsService`) implement those interfaces; most methods still throw `501 NOT_IMPLEMENTED`.
+Hand-written classes in `itmo.goto.service` (such as `EventsService`) implement those interfaces; the event listing and event details still throw `501 NOT_IMPLEMENTED`.
+`EventsService` hands each operation to the class responsible for it: `EventCreationService` creates events, `EventDelegateService` changes and cancels them, and `EventParticipationService` joins, leaves, and lists participants.
 Contract changes must stay additive: existing fields and endpoints do not change, new ones are optional.
 
 Errors always use the contract's `ApiError { code, message, details }`, never problem details.
@@ -77,6 +78,8 @@ build domain objects, call the rules, and persist the result.
   `ApiError.Code`.
 Time always comes from the injected `java.time.Clock` bean (`ClockConfiguration`, UTC), so tests fix the clock instead of waiting.
 Join and leave lock the event row with `@Lock(PESSIMISTIC_WRITE)`, read the time after acquiring the lock, and keep the denormalized `events.participants_count` in sync (decision 6).
+Joining then locks the caller's user row, so two parallel joins by one user cannot both pass the schedule conflict rule; every operation keeps the order "event, then user".
+`EventDeadlineService.settle()` runs every minute (`SchedulingConfiguration` turns on scheduling) and brings events past their deadline or end up to date under the same lock; requests never rely on it, because each one brings its event up to date itself.
 
 Authentication lives in `itmo.goto.auth`.
 `TelegramLaunch` is a framework-free check of Mini App `initData` against `TELEGRAM_BOT_TOKEN` and the `Clock`.
@@ -97,6 +100,7 @@ JPA entities live in `itmo.goto.model` and Spring Data repositories in `itmo.got
 - Logging is turned off in `src/test/resources/logback-test.xml`.
 - `verify` fails when Kover reports less than 80% line or branch coverage of hand-written code; only `itmo.goto.generated` and `main` are excluded. Never lower the threshold or add exclusions to pass it.
 - Each service method that still answers 501 has a stub test; replace it with behavior tests when the method is implemented.
+- `EventParticipationRaceTest` checks concurrency on real commits: it turns off the test transaction, uses the system clock, holds row locks from a separate transaction, and bounds every wait with a timeout.
 - detekt (`backend/detekt.yml`, on top of the default rules) and ktlint (`.editorconfig`, `intellij_idea` style) check main and test code with zero tolerance and no baselines. Fix violations instead of suppressing them; every exception in `detekt.yml` carries a comment with its reason.
 
 ## Frontend architecture

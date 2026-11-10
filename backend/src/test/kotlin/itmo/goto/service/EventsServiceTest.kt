@@ -3,6 +3,7 @@ package itmo.goto.service
 import itmo.goto.PostgresConfiguration
 import itmo.goto.Rows
 import itmo.goto.auth.Identity
+import itmo.goto.generated.model.ApiError
 import itmo.goto.generated.model.CreateEventRequest
 import itmo.goto.generated.model.EventCategory
 import itmo.goto.generated.model.EventState
@@ -27,7 +28,13 @@ import java.util.UUID
 import kotlin.random.Random
 
 @DataJpaTest(showSql = false)
-@Import(PostgresConfiguration::class, EventsService::class, Creation::class, EventDelegateService::class)
+@Import(
+    PostgresConfiguration::class,
+    EventsService::class,
+    EventCreationService::class,
+    EventDelegateService::class,
+    EventParticipationService::class,
+)
 class EventsServiceTest(@Autowired private val service: EventsService, @Autowired private val jdbc: JdbcTemplate) {
     @TestBean
     private lateinit var identity: Identity
@@ -119,36 +126,44 @@ class EventsServiceTest(@Autowired private val service: EventsService, @Autowire
     }
 
     @Test
-    fun `participant listing answers not implemented`() {
+    fun `participant listing is handed over to participation`() {
+        Rows(jdbc).user(holder, Random.nextLong(1, 10_000_000_000), null)
+        val closes = now.plus(Duration.ofMinutes(Random.nextLong(1, 600)))
         assertThat(
-            catchThrowableOfType(ResponseStatusException::class.java) {
-                service.getEventParticipants(UUID.randomUUID(), Random.nextInt(1, 100), Random.nextInt(0, 1000))
-            }?.statusCode,
+            service.getEventParticipants(
+                Rows(jdbc).organized(holder, "recruiting", closes, closes.plus(Duration.ofHours(1))),
+                Random.nextInt(1, 100),
+                0,
+            ).items.map { it.id },
         )
-            .withFailMessage("Participant listing doesnt answer 501")
-            .isEqualTo(HttpStatus.NOT_IMPLEMENTED)
+            .withFailMessage("Participant listing isnt handed over to participation")
+            .containsExactly(holder)
     }
 
     @Test
-    fun `joining answers not implemented`() {
+    fun `joining is handed over to participation`() {
+        Rows(jdbc).user(holder, Random.nextLong(1, 10_000_000_000), null)
+        val closes = now.plus(Duration.ofMinutes(Random.nextLong(1, 600)))
         assertThat(
-            catchThrowableOfType(ResponseStatusException::class.java) {
-                service.joinEvent(UUID.randomUUID())
-            }?.statusCode,
+            service.joinEvent(
+                Rows(jdbc).organized(Rows(jdbc).user(), "recruiting", closes, closes.plus(Duration.ofHours(1))),
+            ).isParticipant,
         )
-            .withFailMessage("Joining doesnt answer 501")
-            .isEqualTo(HttpStatus.NOT_IMPLEMENTED)
+            .withFailMessage("Joining isnt handed over to participation")
+            .isTrue()
     }
 
     @Test
-    fun `leaving answers not implemented`() {
+    fun `leaving is handed over to participation`() {
+        Rows(jdbc).user(holder, Random.nextLong(1, 10_000_000_000), null)
+        val closes = now.plus(Duration.ofMinutes(Random.nextLong(1, 600)))
         assertThat(
-            catchThrowableOfType(ResponseStatusException::class.java) {
-                service.leaveEvent(UUID.randomUUID())
-            }?.statusCode,
+            Failure {
+                service.leaveEvent(Rows(jdbc).organized(holder, "recruiting", closes, closes.plus(Duration.ofHours(1))))
+            }.code(),
         )
-            .withFailMessage("Leaving doesnt answer 501")
-            .isEqualTo(HttpStatus.NOT_IMPLEMENTED)
+            .withFailMessage("Leaving isnt handed over to participation")
+            .isEqualTo(ApiError.Code.ORGANIZER_CANNOT_LEAVE)
     }
 
     companion object {
