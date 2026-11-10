@@ -54,9 +54,26 @@ Errors always use the contract's `ApiError { code, message, details }`, never pr
 Services signal refusals by throwing `itmo.goto.web.ApiFailure` with an `ApiError.Code`; the code alone decides the HTTP status.
 `ApiErrorHandler` turns validation, unreadable JSON, unknown fields (`fail-on-unknown-properties=true`), and unexpected exceptions into `ApiError`, hiding internal details on 500.
 
-Planned layering from `design.md` decision 4:
-event rules (participant limits, the five event states, join, leave, cancel) go into a framework-free `itmo.goto.domain` package that returns a new state or a typed refusal.
-Services load JPA entities, call the domain, and persist the result.
+Event rules live in the framework-free `itmo.goto.domain` package (`design.md` decision 4); services load JPA entities,
+build domain objects, call the rules, and persist the result.
+
+- `Meeting` is an event as the rules see it: a `Schedule` (registration deadline, start, end), `Limits` (minimum and
+  maximum participants), the participant count, and one of the five `State` values.
+- `Meeting.current(now)` brings the state up to date: at the deadline it becomes `REGISTRATION_CLOSED` or
+  `CANCELLED_BY_SYSTEM` by the minimum, at the end `REGISTRATION_CLOSED` becomes `FINISHED`, and cancelled states never
+  change.
+- `join`, `leave`, `change`, and `cancel` take the caller's `Role` (`ORGANIZER`, `PARTICIPANT`, `OUTSIDER`), update the
+  state first, and return a `Decision`.
+- A `Decision` is `Accepted` or `Refused`; `fold` hands over the meeting to persist in both cases, so a refused request
+  still saves a closed registration, and a `Refusal` is named after the contract's error code with a Russian message.
+- Joining as a participant and leaving as an outsider are accepted without changes, as the contract's idempotency
+  requires.
+- `Agenda` holds the caller's other meetings and finds a schedule conflict when one in `RECRUITING` or
+  `REGISTRATION_CLOSED` starts less than three hours away; joining and creating both check it.
+- Field rules return `Violation` lists for 400 responses: `Limits.violations()` and `Schedule.violations(now)`. `change`
+  requires both to be empty and throws otherwise, so services validate before calling it.
+- The domain has its own `State` and `Refusal` enums; services translate them to the generated `EventState` and
+  `ApiError.Code`.
 Time always comes from the injected `java.time.Clock` bean (`ClockConfiguration`, UTC), so tests fix the clock instead of waiting.
 Join and leave lock the event row with `@Lock(PESSIMISTIC_WRITE)`, read the time after acquiring the lock, and keep the denormalized `events.participants_count` in sync (decision 6).
 
