@@ -129,6 +129,7 @@ watch(() => props.places, renderPlaces, { deep: true })
 onMounted(() => {
   if (!container.value) return
   instance = map(container.value, { scrollWheelZoom: false }).setView([59.9343, 30.3351], 11)
+  instance.attributionControl.setPrefix(false)
   tiles = tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution:

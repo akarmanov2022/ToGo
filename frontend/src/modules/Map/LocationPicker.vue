@@ -76,6 +76,7 @@ onMounted(() => {
     initial ? [initial.latitude, initial.longitude] : [59.9343, 30.3351],
     11,
   )
+  instance.attributionControl.setPrefix(false)
   tiles = tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution:

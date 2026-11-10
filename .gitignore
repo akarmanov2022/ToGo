@@ -10,4 +10,6 @@ frontend/dist/
 *.tsbuildinfo
 
 .env
+frontend/.env.local
+frontend/.env.*.local
 

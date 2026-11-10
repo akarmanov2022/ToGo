@@ -10,6 +10,7 @@ const leaflet = vi.hoisted(() => {
   const tileHandlers = new Map<string, () => void>()
   const instance = {
     setView: vi.fn(() => instance),
+    attributionControl: { setPrefix: vi.fn() },
     on: vi.fn((event: string, handler: Handler) => {
       mapHandlers.set(event, handler)
       return instance
@@ -112,6 +113,11 @@ async function tileEvent(event: string) {
 }
 
 describe('LocationPicker', () => {
+  it('убирает значок «Leaflet» из атрибуции, сохраняя © OpenStreetMap', () => {
+    mountPicker()
+    expect(leaflet.instance.attributionControl.setPrefix).toHaveBeenCalledWith(false)
+  })
+
   it('выбирает и меняет точку через v-model, перемещая существующий маркер', async () => {
     const { picker, model } = mountPicker()
     expect(picker.text()).toContain('Невский проспект, 1')

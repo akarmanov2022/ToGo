@@ -12,6 +12,7 @@ const leaflet = vi.hoisted(() => {
     on: vi.fn(),
     invalidateSize: vi.fn(),
     remove: vi.fn(),
+    attributionControl: { setPrefix: vi.fn() },
   }
   const tiles = {
     on: vi.fn((event: string, handler: () => void) => {
@@ -141,6 +142,11 @@ describe('PlacePicker', () => {
     expect(picker.text()).not.toContain('30.34')
     expect(marker.setStyle).toHaveBeenLastCalledWith(expect.objectContaining({ radius: 12 }))
     expect(marker.bringToFront).toHaveBeenCalled()
+  })
+
+  it('убирает значок «Leaflet» из атрибуции, сохраняя © OpenStreetMap', () => {
+    mountPicker()
+    expect(leaflet.instance.attributionControl.setPrefix).toHaveBeenCalledWith(false)
   })
 
   it('не подписывается на произвольные клики карты и не предлагает ручной адрес', () => {

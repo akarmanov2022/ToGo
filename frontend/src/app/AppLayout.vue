@@ -1,3 +1,7 @@
+<script setup lang="ts">
+import { useRoute } from 'vue-router'
+const route = useRoute()
+</script>
 <template>
   <header class="header">
     <div class="header-inner">
@@ -5,12 +9,17 @@
       <nav class="desktop-nav">
         <RouterLink to="/">События</RouterLink><RouterLink to="/profile">Профиль</RouterLink>
       </nav>
-      <RouterLink class="button header-create" to="/create">+ Создать событие</RouterLink
+      <RouterLink v-if="route.path !== '/create'" class="button header-create" to="/create"
+        >+ Создать событие</RouterLink
       ><RouterLink class="header-avatar" to="/profile" aria-label="Профиль">С</RouterLink>
     </div>
   </header>
   <slot />
-  <RouterLink class="floating-create" to="/create" aria-label="Создать событие"
+  <RouterLink
+    v-if="route.path !== '/create'"
+    class="floating-create"
+    to="/create"
+    aria-label="Создать событие"
     >＋ <span>Создать</span></RouterLink
   >
   <nav class="mobile-nav">

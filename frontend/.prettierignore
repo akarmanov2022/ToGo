@@ -3,3 +3,5 @@ dist
 package-lock.json
 skills-lock.json
 *.tsbuildinfo
+src/common/api/schema.ts
+public/mockServiceWorker.js
