@@ -1,5 +1,6 @@
 package itmo.goto
 
+import itmo.goto.generated.model.EventCategory
 import org.springframework.jdbc.core.JdbcTemplate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
@@ -36,8 +37,8 @@ class Rows(private val jdbc: JdbcTemplate) {
     ): UUID = jdbc.queryForObject(
         """
             INSERT INTO events (starts_at, ends_at, registration_closes_at, title, description, location, state,
-                                min_users, max_users, participants_count, organizer_id, latitude, longitude)
-            VALUES (?, ?, ?, ?, '', ?, 'recruiting', 1, ?, 1, ?, ?, ?)
+                                min_users, max_users, participants_count, organizer_id, latitude, longitude, category)
+            VALUES (?, ?, ?, ?, ?, ?, 'recruiting', 1, ?, 1, ?, ?, ?, ?)
             RETURNING id
         """.trimIndent(),
         UUID::class.java,
@@ -45,10 +46,35 @@ class Rows(private val jdbc: JdbcTemplate) {
         ends,
         closes,
         "Событие ${Random.nextInt()}",
+        "Описание ${Random.nextInt()}",
         "Место ${Random.nextInt()}",
         maximum,
         user(),
         point.first,
         point.second,
+        EventCategory.entries.random().name,
+    )!!
+
+    fun event(organizer: UUID, state: String): UUID = event().also {
+        jdbc.update("UPDATE events SET organizer_id = ?, state = ? WHERE id = ?", organizer, state, it)
+    }
+
+    fun participant(event: UUID, user: UUID): UUID = jdbc.queryForObject(
+        "INSERT INTO event_users (event_id, user_id) VALUES (?, ?) RETURNING id",
+        UUID::class.java,
+        event,
+        user,
+    )!!
+
+    fun interest(user: UUID, category: String): Int =
+        jdbc.update("INSERT INTO user_categories (user_id, category) VALUES (?, ?)", user, category)
+
+    fun notification(user: UUID, event: UUID, kind: String): UUID = jdbc.queryForObject(
+        "INSERT INTO notifications (user_id, event_id, kind, due_at) VALUES (?, ?, ?, ?) RETURNING id",
+        UUID::class.java,
+        user,
+        event,
+        kind,
+        OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(Random.nextLong(1, 600)),
     )!!
 }
