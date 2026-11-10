@@ -6,9 +6,6 @@ const auth = useAuthStore()
 </script>
 
 <template>
-  <p v-if="mockMode" class="mock-banner" role="status">
-    Демо-режим MSW — тестовые данные, не настоящая авторизация
-  </p>
   <slot v-if="auth.status === 'authenticated'" />
   <main v-else class="login">
     <section class="login-hero">
