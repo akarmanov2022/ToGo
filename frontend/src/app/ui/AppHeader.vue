@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import AppButton from '@/common/ui/AppButton.vue'
+import { useCurrentUser } from '@/modules/Auth'
+import { avatarLetter } from '@/modules/Profile'
 
 defineProps<{ showCreate: boolean }>()
+const currentUser = useCurrentUser()
 </script>
 <template>
   <header class="header">
@@ -12,7 +15,10 @@ defineProps<{ showCreate: boolean }>()
         <RouterLink to="/profile">Профиль</RouterLink>
       </nav>
       <AppButton v-if="showCreate" class="create" to="/create">+ Создать событие</AppButton>
-      <RouterLink class="avatar" to="/profile" aria-label="Профиль">С</RouterLink>
+      <RouterLink class="avatar" to="/profile" aria-label="Профиль">
+        <img v-if="currentUser.data.value?.photoUrl" :src="currentUser.data.value.photoUrl" alt="" />
+        <span v-else>{{ currentUser.data.value ? avatarLetter(currentUser.data.value.name) : '…' }}</span>
+      </RouterLink>
     </div>
   </header>
 </template>
@@ -54,6 +60,12 @@ defineProps<{ showCreate: boolean }>()
 }
 .avatar {
   display: none;
+}
+.avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
 }
 @media (max-width: 700px) {
   .inner {
