@@ -12,6 +12,11 @@
 - `frontend`: каркас Vue 3 на Vite со страницами ленты, создания события, профиля и карты.
 - `infra/docker-compose.yml`: контейнер PostgreSQL 18.
 
+Требования уточнены по аналитике команды:
+https://docs.google.com/document/d/19rsIFeIvy4lMbOKaGxInJH8MMWmOxSxdXBwLJBqDgPc. Аналитика перечисляет четыре статуса
+события; «Набор пользователей» соответствует `recruiting`, «Все в сборе» — `registration_closed`, а `finished`
+остаётся из контракта. Таблица ERD в аналитике упрощена: там, где она расходится с решением 7, верно решение 7.
+
 ## Goals / Non-Goals
 
 **Goals:**
@@ -25,7 +30,7 @@
 
 - Горизонтальное масштабирование и кэширование. Из фоновой обработки нужен только переход состояний событий по срокам.
 - Доступность и локализация сверх русского текста интерфейса.
-- Инструменты администратора: справочник категорий меняется через миграции.
+- Инструменты администратора: перечень категорий меняется только вместе с контрактом и кодом.
 
 ## Decisions
 
@@ -44,8 +49,8 @@
 | `POST /api/v1/auth/telegram`                                                     | [Auth] вход по initData                        |
 | `GET /api/v1/users/me`, + `PUT /api/v1/users/me`                                 | [Users] свой профиль                           |
 | + `GET /api/v1/users/{userId}`                                                   | [Users] чужой профиль                          |
-| `GET /api/v1/categories`                                                         | [Categories] справочник                        |
-| `GET /api/v1/events?query=&categoryId=&startsFrom=&startsTo=&state=&participating=&limit=&offset=`, + `hasFreePlaces=` | [Events] лента, фильтры, «мои события» |
+| `GET /api/v1/categories`                                                         | [Categories] перечень категорий                |
+| `GET /api/v1/events?query=&category=&startsFrom=&startsTo=&state=&participating=&limit=&offset=`, + `hasFreePlaces=` | [Events] лента, фильтры, «мои события» |
 | `POST /api/v1/events`, `GET /api/v1/events/{eventId}`, `PATCH /api/v1/events/{eventId}` | [Events] создание, карточка, изменение  |
 | `POST /api/v1/events/{eventId}/cancel`                                           | [Events] отмена организатором                  |
 | `GET /api/v1/events/{eventId}/participants`                                      | [Events] список участников                     |
@@ -55,16 +60,32 @@
 Добавления схем:
 
 - `CurrentUser` получает `name`, `photoUrl` (nullable), `city` (nullable) и `categories`; новые `UserProfile`
-  (без `tgId`) и `UpdateProfileRequest` с `name`, `city` и `categoryIds`.
+  (без `tgId`) и `UpdateProfileRequest` с `name`, `city` и `categories`.
 - `Event` и `CreateEventRequest` получают nullable `latitude` и `longitude`; в `PATCH` их нет, как и `location`.
 - `CreateEventRequest` и `UpdateEventRequest`: `maxLength: 100` у `title`, `maxLength: 2000` у `description`,
   `maximum: 50` у `minUsers` и `maxUsers`.
 - Новые `Comment`, `CreateCommentRequest` (`text` до 1000 символов) и `CommentPage` с `limit` и `offset`.
 - `ApiError.code` получает `USER_NOT_FOUND`; `FORBIDDEN` также означает запрет комментировать не участнику.
+- `CurrentUser` и `UserProfile` получают `createdEventsCount` и `visitedEventsCount`; `ApiError.code` получает
+  `SCHEDULE_CONFLICT`.
+
+Единственное исключение из правила добавлений согласовано по аналитике и ревью и вносится до появления клиентов,
+которые от него зависят:
+
+- `description` в `CreateEventRequest` становится обязательным, в `CreateEventRequest` и `UpdateEventRequest`
+  получает `maxLength: 500` и `minLength: 1`.
+- Категория становится перечнем `EventCategory` со значениями `PICNIC` («Пикник»), `RUN` («Пробежка»), `EXCURSION`
+  («Поход на экскурсию»), `BOARD_GAMES` («Настолки»), `QUEST` («Квест»), `CINEMA` («Кино») и `CAFE`
+  («Кафе/Ресторан»). У события одно поле `category`: обязательное в `CreateEventRequest`, необязательное
+  в `UpdateEventRequest`, всегда заполненное в `Event`; оно заменяет `categoryIds` и массив категорий события.
+  Фильтр ленты `category` заменяет `categoryId`. В профиле `categories` и в `UpdateProfileRequest` — набор значений
+  перечня без повторов. `GET /api/v1/categories` отдаёт пары `code` и `name` в порядке объявления перечня.
+- Неизвестное значение категории отклоняется как 400 VALIDATION_ERROR; код `CATEGORY_NOT_FOUND` удаляется
+  из `ApiError.code`.
 
 Ошибки возвращаются в формате `ApiError { code, message, details }` из контракта, а не problem details:
-400 VALIDATION_ERROR или CATEGORY_NOT_FOUND с полями в `details`, 401 UNAUTHORIZED с `WWW-Authenticate: Bearer`,
-403 FORBIDDEN, 404 EVENT_NOT_FOUND или USER_NOT_FOUND, 409 с кодом нарушенного правила, 500 INTERNAL_ERROR без
+400 VALIDATION_ERROR с полями в `details`, 401 UNAUTHORIZED с `WWW-Authenticate: Bearer`,
+403 FORBIDDEN, 404 EVENT_NOT_FOUND или USER_NOT_FOUND, 409 с кодом нарушенного правила, включая SCHEDULE_CONFLICT, 500 INTERNAL_ERROR без
 внутренних деталей. Неизвестные поля запроса отклоняются с 400 VALIDATION_ERROR.
 
 Альтернатива: контроллеры вручную. Отвергнута: генератор уже настроен, а общий контракт — это именно то, что
@@ -126,7 +147,7 @@ Mini App внутри Telegram по этому адресу. До появлен
 ### 4. Чистые доменные правила, JPA на краю
 
 Пакет `itmo.goto.domain` содержит Kotlin-код без фреймворков: лимиты участников, переходы состояний по сроку регистрации и окончания
-из спецификации `event-participation` и правила присоединения, выхода и отмены. Эти правила превращают запрос либо в новое
+из спецификации `event-participation`, правила присоединения, выхода и отмены и правило пересечения по времени. Эти правила превращают запрос либо в новое
 состояние, либо в типизированный отказ. Сервисы в `itmo.goto.service` загружают JPA-сущности, вызывают домен и сохраняют
 результат. Текущее время приходит из внедрённого `java.time.Clock`, поэтому тесты статуса фиксируют часы, а не ждут.
 
@@ -173,47 +194,61 @@ Mini App внутри Telegram по этому адресу. До появлен
 Актуализация состояния должна сохраняться и при отказе в действии: типизированный отказ возвращается из
 транзакции и преобразуется в HTTP-ошибку после commit, чтобы не откатить закрытие регистрации. Правило «уже участник» дополнительно подкреплено уникальным ограничением на `(event_id, user_id)`.
 
+Правило пересечения по времени отклоняет вступление и создание события с 409 SCHEDULE_CONFLICT, если пользователь
+участвует в другом событии в `recruiting` или `registration_closed`, начало которого отстоит от начала нового меньше
+чем на три часа; ровно три часа допустимы. Проверяется после состояния, срока регистрации и вместимости, по
+актуальному состоянию других событий из решения 5. Чтобы два параллельных вступления одного пользователя в разные
+события не обошли правило, вступление после блокировки события блокирует строку пользователя, а создание события
+блокирует только строку пользователя. Порядок «событие, затем пользователь» один для всех операций, поэтому
+взаимной блокировки нет.
+
 Альтернатива: оптимистическая блокировка через `@Version`. Отвергнута: проигравший запрос получает общую ошибку
 «повторите попытку» вместо понятного ответа «мест нет», которого требует спецификация.
 
 ### 7. Модель данных
 
 Миграция `V1__base_structure.sql` уже есть и могла быть применена локально, поэтому её не правят: изменения вносит
-новая миграция `V2`.
+новая миграция `V2`. Уточнения по аналитике и ревью вносит миграция `V3`: она удаляет таблицы `categories`
+и `event_categories`, добавляет `events.category`, пересоздаёт `user_categories` со значением перечня вместо ссылки,
+делает `events.description` обязательным от 1 до 500 символов и создаёт `notifications`. Значения категорий
+хранятся строками кодов перечня и ограничены CHECK. Локальные базы с тестовыми событиями пересоздаются.
 
 ```
 users(id uuid, tg_id bigint unique, tg_login null,
       + name, + photo_url null, + city null, + created_at)
-categories(id uuid, name unique)                      -- заполняется миграцией
-+ user_categories(user_id, category_id)               -- первичный ключ по обоим полям
++ user_categories(user_id, category)                  -- первичный ключ по обоим полям, category из перечня
 events(id uuid, title, description, location, icon null,
        starts_at timestamptz, ends_at timestamptz, registration_closes_at timestamptz,
-       state, min_users, max_users, organizer_id,
+       state, min_users, max_users, organizer_id, + category,
        + participants_count, + latitude null, + longitude null, + created_at)
 event_users(id, event_id, user_id, + joined_at)       -- unique (event_id, user_id)
-event_categories(id, event_id, category_id)           -- unique (event_id, category_id)
 + comments(id uuid, event_id, author_id, text, created_at)
++ notifications(id uuid, user_id, event_id, kind, due_at, sent_at null, attempts)  -- unique (user_id, event_id, kind)
 ```
+
+Счётчики профиля не хранятся, в отличие от `created_events` и `visited_events` в ERD аналитики: их считают запросы
+к `events.organizer_id` и к `event_users` с событиями в `finished`, чтобы счётчики не расходились с данными.
 
 Ограничения CHECK повторяют контракт: `1 <= min_users <= max_users <= 50`,
 `1 <= participants_count <= max_users`, обе координаты либо пустые, либо заданы и лежат в допустимых диапазонах,
 `registration_closes_at <= starts_at < ends_at`, `state` ограничен пятью значениями из решения 5, длина
-`title` до 100, `description` до 2000, `comments.text` от 1 до 1000 символов. Проверка `registrationClosesAt > now`
+`title` до 100, `description` от 1 до 500, `comments.text` от 1 до 1000 символов. Проверка `registrationClosesAt > now`
 выполняется сервисом при создании и изменении срока, а не динамическим CHECK. Индексы: `events(starts_at)`,
-`events(organizer_id)`, `event_users(user_id)`, `event_categories(category_id)`,
+`events(organizer_id)`, `event_users(user_id)`, `events(category)`,
 `events(registration_closes_at) WHERE state = 'recruiting'`, `events(ends_at) WHERE state = 'registration_closed'`,
-`comments(event_id, created_at)`.
+`comments(event_id, created_at)`, `notifications(due_at) WHERE sent_at IS NULL`.
 
 ### 8. Запрос ленты
 
 Один запрос репозитория, который собирается через JPA `Specification` из необязательных фильтров контракта:
-`query` (`lower(title) LIKE`), `categoryId` (через `event_categories`), `startsFrom` включительно, `startsTo`
+`query` (`lower(title) LIKE`), `category` (равенство `events.category`), `startsFrom` включительно, `startsTo`
 исключительно, `state`, `participating` (через `event_users` текущего пользователя) и `hasFreePlaces`
 (`state = 'recruiting'`, `registration_closes_at > now`, `participants_count < max_users`). Фильтр по состоянию
 применяется к актуальному состоянию: перед выборкой сервис актуализирует события с наступившими сроками по
 решению 5. Порядок `starts_at, id`, пагинация `limit` и `offset`, `total` считается отдельным запросом с теми же
 условиями. По умолчанию состояние не фильтруется: прошедшие и отменённые события тоже возвращаются, а экран ленты
-сам передаёт `startsFrom=now`.
+сам передаёт `startsFrom=now`. Требование аналитики «бэкенд возвращает только ещё не наступившие события» выполняется
+этим параметром экрана: умолчание сервера не меняется, потому что «Мои события» запрашивают и прошедшие события.
 
 «Мои события» — тот же запрос с `participating=true`: клиент делает два запроса, `startsFrom=now` и `startsTo=now`,
 и показывает прошедшие события в обратном порядке. Отдельного эндпоинта нет.
@@ -286,6 +321,23 @@ Leaflet и тайлы OpenStreetMap. Пользователь может вве�
 Альтернатива: собирать образ прямо на сервере через `git pull`. Отвергнута: сборка Maven и Node нагружает маленький
 сервер, а образ из реестра одинаков у CI и сервера.
 
+### 14. Уведомления через бота: очередь в базе и планировщик
+
+Операция, после которой нужно уведомление, в той же транзакции записывает строку `notifications`: вступление —
+`joined` для вступившего, закрытие набора с набранным минимумом — `confirmed` для каждого участника, отмена —
+`cancelled` для участников, кроме организатора при его собственной отмене. Создание события и вступление записывают
+напоминания `reminder_day` и `reminder_hour` на `startsAt` минус сутки и минус час, если эти моменты ещё впереди;
+выход удаляет неотправленные напоминания пользователя. Уникальность `(user_id, event_id, kind)` исключает повторы.
+
+Задача `@Scheduled` раз в минуту выбирает строки с наступившим `due_at`, пропускает напоминания отменённых событий,
+отправляет текст на русском через Bot API `sendMessage` с `chat_id`, равным Telegram ID, и отмечает `sent_at`. Ответ
+403 (бот заблокирован или не получал разрешения) закрывает строку без повторов, прочие ошибки повторяются до трёх
+попыток. Клиент при первом запуске вызывает `Telegram.WebApp.requestWriteAccess`, чтобы бот мог писать пользователю.
+Время берётся из внедрённого `Clock`, а адрес Bot API настраивается, чтобы тесты подменяли его локальным сервером.
+
+Альтернатива: отправлять сообщение прямо в запросе пользователя. Отвергнута: задержки и сбои Telegram попали бы
+под блокировку события и в результат операции.
+
 ## Risks / Trade-offs
 
 - [Spring Boot 4 и опция генератора
@@ -315,6 +367,11 @@ Leaflet и тайлы OpenStreetMap. Пользователь может вве�
   в BotFather.
 - [На демо нет интернета или второго аккаунта Telegram] → Заранее подготовить два аккаунта для сквозного
   сценария и записать запасное видео; вымышленные пользователи остаются только частью наполнения БД.
+- [Сужение контракта для описания и категорий нарушает правило добавлений] → Внести его одной задачей до того, как
+  фронтенд начнёт отправлять события, и зафиксировать исключение в решении 1.
+- [Бот не может написать пользователю, который не дал разрешения] → Запрашивать `requestWriteAccess` при первом запуске,
+  не повторять отправку после 403 и не считать уведомления обязательной частью сценария.
+- [Сбой между отправкой и отметкой `sent_at` даёт повторное сообщение] → Принять редкий дубль ради простоты очереди.
 - [H2 в зависимостях соблазняет тестировать на нём] → Использовать только Testcontainers и удалить H2 вместе с первым
   тестом репозитория.
 
@@ -333,4 +390,7 @@ Mini App и кнопку открытия у бота в BotFather. Дальше
 
 - Какой облачный провайдер и какой домен. Подход из решения 12 подходит любому провайдеру с VPS на Ubuntu, поэтому выбор
   меняет только первичную настройку сервера.
-- Точный список категорий в справочнике. Это данные миграции, их можно поменять в любой момент.
+- Значения по умолчанию для `endsAt` и `registrationClosesAt` в форме создания: аналитика описывает только дату и время
+  начала, а контракт требует все три момента.
+- Вопросы аналитики без ответа, вне MVP: нужна ли роль гостя, отзывы на события, страница архива, для каких городов
+  приложение и хранить ли иконки отдельной таблицей.
