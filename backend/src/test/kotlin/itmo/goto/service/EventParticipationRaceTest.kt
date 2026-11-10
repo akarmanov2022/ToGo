@@ -172,35 +172,33 @@ class EventParticipationRaceTest(
         return Failure { participation.leave(event) }.code()
     }
 
-    private fun racing(vararg calls: () -> Any?): List<Any?> =
-        Executors.newFixedThreadPool(calls.size).use { pool ->
-            val start = CyclicBarrier(calls.size)
-            calls.map { call ->
-                pool.submit<Any?> {
-                    start.await(5, TimeUnit.SECONDS)
-                    call()
-                }
-            }.map { it.get(10, TimeUnit.SECONDS) }
-        }
+    private fun racing(vararg calls: () -> Any?): List<Any?> = Executors.newFixedThreadPool(calls.size).use { pool ->
+        val start = CyclicBarrier(calls.size)
+        calls.map { call ->
+            pool.submit<Any?> {
+                start.await(5, TimeUnit.SECONDS)
+                call()
+            }
+        }.map { it.get(10, TimeUnit.SECONDS) }
+    }
 
-    private fun <T> held(event: UUID, until: Instant, call: () -> T): T =
-        Executors.newFixedThreadPool(2).use { pool ->
-            val locked = CountDownLatch(1)
-            val lock = pool.submit {
-                TransactionTemplate(transactions).executeWithoutResult {
-                    jdbc.queryForList("SELECT id FROM events WHERE id = ? FOR UPDATE", event)
-                    locked.countDown()
-                    while (Instant.now().isBefore(until.plusMillis(200))) {
-                        Thread.sleep(10)
-                    }
+    private fun <T> held(event: UUID, until: Instant, call: () -> T): T = Executors.newFixedThreadPool(2).use { pool ->
+        val locked = CountDownLatch(1)
+        val lock = pool.submit {
+            TransactionTemplate(transactions).executeWithoutResult {
+                jdbc.queryForList("SELECT id FROM events WHERE id = ? FOR UPDATE", event)
+                locked.countDown()
+                while (Instant.now().isBefore(until.plusMillis(200))) {
+                    Thread.sleep(10)
                 }
             }
-            check(locked.await(5, TimeUnit.SECONDS)) { "Event lock was not taken in time" }
-            val waiting = pool.submit<T> { call() }
-            waited()
-            lock.get(10, TimeUnit.SECONDS)
-            waiting.get(10, TimeUnit.SECONDS)
         }
+        check(locked.await(5, TimeUnit.SECONDS)) { "Event lock was not taken in time" }
+        val waiting = pool.submit<T> { call() }
+        waited()
+        lock.get(10, TimeUnit.SECONDS)
+        waiting.get(10, TimeUnit.SECONDS)
+    }
 
     private fun waited() {
         val deadline = Instant.now().plusSeconds(5)
