@@ -4,11 +4,18 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { useRouter } from 'vue-router'
 import { apiRequest, ApiError } from '@/common/api/client'
 import type { components } from '@/common/api/schema'
+import AppButton from '@/common/ui/AppButton.vue'
+import AppChip from '@/common/ui/AppChip.vue'
+import AppField from '@/common/ui/AppField.vue'
+import ChipGroup from '@/common/ui/ChipGroup.vue'
+import LoadingText from '@/common/ui/LoadingText.vue'
 import { useAuthStore } from '@/modules/Auth'
 import { PlacePicker, toCoordinateFields, type MeetingPlace } from '@/modules/Map'
 import { EventSchedule, emptySchedule } from '@/modules/EventSchedule'
 import { creationCategories, creationRestrictions, validateCreation } from './creation'
 import { demoPlaces } from './demoPlaces'
+import EventCard from './EventCard.vue'
+import { formatStart } from './format'
 
 const props = withDefaults(defineProps<{ places?: MeetingPlace[] }>(), { places: () => demoPlaces })
 const auth = useAuthStore()
@@ -17,6 +24,7 @@ const queryClient = useQueryClient()
 const draft = reactive({
   title: '',
   description: '',
+  icon: '',
   category: '',
   minUsers: '1',
   maxUsers: '2',
@@ -71,6 +79,7 @@ const restrictions = computed(() =>
   ),
 )
 const serverError = ref('')
+const serverDetails = ref<Record<string, string>>({})
 const create = useMutation({
   mutationFn: () =>
     apiRequest<components['schemas']['Event']>('/api/v1/events', {
@@ -78,6 +87,7 @@ const create = useMutation({
       body: {
         title: draft.title.trim(),
         description: draft.description.trim(),
+        ...(draft.icon.trim() ? { icon: draft.icon.trim() } : {}),
         category: draft.category as components['schemas']['EventCategory'],
         location: draft.place!.address,
         ...toCoordinateFields(draft.place),
@@ -86,15 +96,21 @@ const create = useMutation({
         maxUsers: Number(draft.maxUsers),
       } satisfies components['schemas']['CreateEventRequest'],
     }),
-  onSuccess: async () => {
+  onSuccess: async (event) => {
     await queryClient.invalidateQueries({ queryKey: ['events'] })
-    await router.push('/')
+    await router.push(`/events/${event.id}`)
   },
   onError: (error) => {
     serverError.value =
       error instanceof ApiError
         ? error.message
         : 'Не удалось создать встречу. Проверьте подключение.'
+    serverDetails.value =
+      error instanceof ApiError
+        ? Object.fromEntries(
+            (error.body?.details ?? []).map((detail) => [detail.field, detail.message]),
+          )
+        : {}
   },
 })
 const canCreate = computed(
@@ -110,6 +126,7 @@ function submit() {
   touched.value = true
   now.value = new Date()
   serverError.value = ''
+  serverDetails.value = {}
   if (canCreate.value) create.mutate()
 }
 function selectCategory(code: string) {
@@ -123,37 +140,41 @@ function digits(field: 'minUsers' | 'maxUsers', event: Event) {
 }
 </script>
 <template>
-  <section class="create">
-    <RouterLink class="back-link" to="/">‹ <span>Назад к событиям</span></RouterLink>
+  <section>
+    <RouterLink class="back" to="/">‹ <span>Назад к событиям</span></RouterLink>
     <h1>Новое событие</h1>
-    <div class="create-layout">
-      <form class="event-form" novalidate @submit.prevent="submit" @input="touched = true">
-        <label
-          >Название<input
-            v-model="draft.title"
-            maxlength="100"
-            required
-            placeholder="Например, кофе и десерты"
-            :aria-invalid="Boolean(touched && errors.title)"
-        /></label>
-        <p v-if="touched && errors.title" class="field-error">{{ errors.title }}</p>
-        <fieldset>
-          <legend>Категория</legend>
-          <div class="categories">
-            <button
+    <div class="layout">
+      <form class="form" novalidate @submit.prevent="submit" @input="touched = true">
+        <AppField
+          v-model="draft.title"
+          label="Название"
+          maxlength="100"
+          required
+          placeholder="Например, кофе и десерты"
+          :aria-invalid="Boolean(touched && errors.title)"
+        />
+        <p v-if="touched && errors.title" class="error">{{ errors.title }}</p>
+        <div class="field" role="group" aria-labelledby="create-category-label">
+          <span id="create-category-label" class="label">Категория</span>
+          <ChipGroup>
+            <AppChip
               v-for="item in categories"
               :key="item.code"
-              type="button"
-              :class="['chip', { selected: draft.category === item.code }]"
+              tone="pink"
+              :active="draft.category === item.code"
               :aria-pressed="draft.category === item.code"
               @click="selectCategory(item.code)"
+              >{{ item.name }}</AppChip
             >
-              {{ item.name }}
-            </button>
-          </div>
-        </fieldset>
-        <label
-          >Описание<textarea
+          </ChipGroup>
+          <p v-if="categoryQuery.isError.value" class="hint">
+            Не удалось обновить категории.
+            <button type="button" @click="categoryQuery.refetch()">Повторить</button>
+          </p>
+        </div>
+        <label class="field"
+          ><span class="label">Описание</span
+          ><textarea
             v-model="draft.description"
             required
             maxlength="500"
@@ -162,104 +183,153 @@ function digits(field: 'minUsers' | 'maxUsers', event: Event) {
             :aria-invalid="Boolean(touched && errors.description)"
           />
         </label>
-        <span class="field-hint">{{ draft.description.length }} / 500</span>
-        <p v-if="touched && errors.description" class="field-error">{{ errors.description }}</p>
+        <span class="hint">{{ draft.description.length }} / 500</span>
+        <p v-if="touched && errors.description" class="error">{{ errors.description }}</p>
         <EventSchedule v-model="draft.schedule" />
         <PlacePicker v-model="draft.place" :places="availablePlaces" />
-        <p v-if="touched && errors.place" class="field-error">{{ errors.place }}</p>
-        <div class="participants-fields">
-          <label
-            >Минимум участников<input
-              :value="draft.minUsers"
-              inputmode="numeric"
-              pattern="[0-9]*"
-              required
-              maxlength="2"
-              :aria-invalid="Boolean(touched && errors.minUsers)"
-              @input="digits('minUsers', $event)"
-          /></label>
-          <p v-if="touched && errors.minUsers" class="field-error">{{ errors.minUsers }}</p>
-          <label
-            >Максимум участников<input
-              :value="draft.maxUsers"
-              inputmode="numeric"
-              pattern="[0-9]*"
-              required
-              maxlength="2"
-              :aria-invalid="Boolean(touched && errors.maxUsers)"
-              @input="digits('maxUsers', $event)"
-          /></label>
-          <p v-if="touched && errors.maxUsers" class="field-error">{{ errors.maxUsers }}</p>
+        <p v-if="touched && errors.place" class="error">{{ errors.place }}</p>
+        <AppField
+          v-model="draft.icon"
+          label="Иконка-эмодзи (необязательно)"
+          placeholder="Например: ☕"
+          maxlength="8"
+        />
+        <p v-if="touched && errors.icon" class="error">{{ errors.icon }}</p>
+        <div class="row">
+          <AppField
+            :model-value="draft.minUsers"
+            label="Минимум участников"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            required
+            maxlength="2"
+            :aria-invalid="Boolean(touched && errors.minUsers)"
+            @input="digits('minUsers', $event)"
+          />
+          <AppField
+            :model-value="draft.maxUsers"
+            label="Максимум участников"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            required
+            maxlength="2"
+            :aria-invalid="Boolean(touched && errors.maxUsers)"
+            @input="digits('maxUsers', $event)"
+          />
         </div>
-        <div class="form-actions">
-          <button type="submit" class="button" :disabled="!canCreate">
-            {{ create.isPending.value ? 'Создаём…' : 'Создать встречу' }}
-          </button>
-          <RouterLink class="button secondary" to="/">Отмена</RouterLink>
+        <p v-if="touched && errors.minUsers" class="error">{{ errors.minUsers }}</p>
+        <p v-if="touched && errors.maxUsers" class="error">{{ errors.maxUsers }}</p>
+        <div class="actions">
+          <AppButton type="submit" :disabled="!canCreate"
+            ><LoadingText v-if="create.isPending.value" label="Создаём" /><template v-else
+              >Создать встречу</template
+            ></AppButton
+          >
+          <AppButton to="/" variant="secondary">Отмена</AppButton>
         </div>
-        <p v-if="touched && Object.keys(errors).length" class="field-error" role="status">
+        <p v-if="touched && Object.keys(errors).length" class="error" role="status">
           Пожалуйста, заполните обязательные поля
         </p>
-        <p v-for="reason in restrictions" :key="reason" class="field-error" role="status">
-          {{ reason }}
-        </p>
-        <p v-if="participating.isError.value" class="field-error" role="alert">
+        <p v-for="reason in restrictions" :key="reason" class="error" role="status">{{ reason }}</p>
+        <p v-if="participating.isError.value" class="error" role="alert">
           Не удалось проверить ваши встречи.
           <button type="button" @click="participating.refetch()">Повторить</button>
         </p>
-        <p v-if="serverError" class="field-error" role="alert">{{ serverError }}</p>
+        <p v-if="serverError" class="error" role="alert">{{ serverError }}</p>
+        <p v-for="(message, field) in serverDetails" :key="field" class="error">{{ message }}</p>
       </form>
-      <aside class="preview">
+      <aside>
         <h2>Так увидят другие</h2>
-        <div class="event-card preview-card">
-          <div class="event-icon pink" />
-          <div class="event-info">
-            <h3>{{ draft.title || 'Название события' }}</h3>
-            <p>
-              {{ categories.find((item) => item.code === draft.category)?.name || 'Категория' }} ·
-              {{
-                draft.schedule.startsAt
-                  ? new Date(draft.schedule.startsAt).toLocaleString('ru-RU', {
-                      dateStyle: 'short',
-                      timeStyle: 'short',
-                    })
-                  : 'Дата и время'
-              }}
-            </p>
-            <p>{{ draft.place?.address || 'Место' }} · до {{ draft.maxUsers || '—' }} участников</p>
-            <p>{{ draft.description }}</p>
-          </div>
-        </div>
+        <EventCard
+          accent
+          pink
+          :title="draft.title || 'Название события'"
+          :meta="`${categories.find((item) => item.code === draft.category)?.name || 'Категория'} · ${draft.schedule.startsAt ? formatStart(draft.schedule.startsAt) : 'Дата и время'}`"
+          :place="`${draft.place?.address || 'Место'} · до ${draft.maxUsers || '—'} участников`"
+          state="Идёт набор"
+        />
+        <p class="preview-description">{{ draft.description }}</p>
       </aside>
     </div>
   </section>
 </template>
 <style scoped>
-.participants-fields {
+h1 {
+  margin-bottom: 22px;
+}
+.back {
+  display: none;
+}
+.layout {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 48px;
+}
+.form,
+.field {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 18px;
+  min-width: 0;
 }
-.field-error {
-  color: #b42318;
-  font-size: 12px;
+.field {
+  gap: 7px;
 }
-.field-hint {
-  color: #77718d;
+aside h2,
+.label {
   font-size: 12px;
-  text-align: right;
+  font-weight: 800;
+}
+aside h2 {
+  margin-bottom: 10px;
 }
 textarea {
   width: 100%;
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  color: var(--color-text);
+  background: var(--color-surface);
   resize: vertical;
-  border: 1px solid #dcc8ee;
-  border-radius: 10px;
-  padding: 12px;
   font: inherit;
-  color: inherit;
-  background: #fff;
 }
-[aria-invalid='true'] {
-  border-color: #b42318;
+.row,
+.actions {
+  display: flex;
+  gap: 15px;
+}
+.row > * {
+  flex: 1;
+}
+.hint {
+  font-size: 12px;
+  color: var(--color-text-subtle);
+}
+.error {
+  font-size: 12px;
+  color: #b42318;
+}
+.preview-description {
+  margin-top: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 700px) {
+  h1 {
+    font-size: 25px;
+  }
+  .back {
+    display: inline-block;
+    margin-bottom: 10px;
+    font-size: 14px;
+  }
+  .layout {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .actions > * {
+    flex: 1;
+  }
 }
 </style>

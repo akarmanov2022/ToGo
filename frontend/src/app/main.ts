@@ -7,7 +7,9 @@ import { useAuthStore } from '@/modules/Auth'
 import { bindApiSession } from './init/session'
 import { queryClient } from './queryClient'
 import { shouldUseMocks } from './mocks/mode'
-import './styles.css'
+import './styles/tokens.css'
+import './styles/base.css'
+import './styles/login.css'
 
 async function bootstrap() {
   if (shouldUseMocks()) {

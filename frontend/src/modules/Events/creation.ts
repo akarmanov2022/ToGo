@@ -1,10 +1,12 @@
 import type { components } from '@/common/api/schema'
 import { validateSchedule, type EventScheduleValue } from '@/modules/EventSchedule'
 import type { MeetingPlace } from '@/modules/Map'
+import { isSingleEmoji } from './eventForm'
 
 export interface CreationDraft {
   title: string
   description: string
+  icon?: string
   category: string
   minUsers: string
   maxUsers: string
@@ -31,6 +33,8 @@ export function validateCreation(draft: CreationDraft, now = new Date()) {
   if (!creationCategories.some((item) => item.code === draft.category))
     errors.category = 'Выберите категорию'
   if (!draft.place) errors.place = 'Выберите место на карте'
+  if (draft.icon?.trim() && !isSingleEmoji(draft.icon.trim()))
+    errors.icon = 'Укажите один эмодзи или оставьте пустым'
   if (!/^\d+$/.test(draft.minUsers) || Number(draft.minUsers) < 1 || Number(draft.minUsers) > 50)
     errors.minUsers = 'Минимум: целое число от 1 до 50'
   if (!/^\d+$/.test(draft.maxUsers) || Number(draft.maxUsers) < 2 || Number(draft.maxUsers) > 50)

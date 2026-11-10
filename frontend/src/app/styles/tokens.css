@@ -1,0 +1,20 @@
+:root {
+  --font-family: 'Nunito Sans', system-ui, sans-serif;
+  --color-text: #1f2456;
+  --color-text-muted: #47456d;
+  --color-text-subtle: #77718d;
+  --color-bg: #fdf6fa;
+  --color-surface: #fff;
+  --color-navy: #292657;
+  --color-blue: #344b9c;
+  --color-blue-soft: #dce8ff;
+  --color-pink: #f58cba;
+  --color-pink-soft: #fbd5e6;
+  --color-pink-strong: #fa72ae;
+  --color-border: #f5c6db;
+  --color-input-border: #dcc8ee;
+  --radius-sm: 9px;
+  --radius-md: 12px;
+  --radius-lg: 15px;
+  --container-width: 1200px;
+}

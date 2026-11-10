@@ -206,6 +206,24 @@ function applyDate(field: ScheduleField, value: string) {
   flex: 1;
   min-width: 140px;
 }
+.schedule-control > label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 800;
+}
+.schedule-control input[type='date'],
+.schedule-control input[type='time'] {
+  width: 100%;
+  min-width: 0;
+  height: 43px;
+  border: 1px solid #dcc8ee;
+  border-radius: 10px;
+  padding: 0 12px;
+  background: #fff;
+  color: #292657;
+}
 .schedule-error {
   color: #b42318;
   font-size: 0.875rem;
