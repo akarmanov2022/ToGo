@@ -39,8 +39,8 @@ npm run lint
 npm run format:check   # npm run format rewrites files
 ```
 
-GitHub Actions runs the same backend `verify` on every pull request and every push to `main` (`.github/workflows/backend.yml`) and attaches the coverage, analyzer, and test reports to the run.
-Frontend checks and deployment are planned in `tasks.md` section 2.
+GitHub Actions runs `.github/workflows/ci.yml` on every pull request and every push to `main`: the same backend `verify`, which attaches the coverage, analyzer, and test reports to the run, and the frontend `npm ci` and `npm run build`.
+Deployment is planned in `tasks.md` section 2.
 
 ## Backend architecture
 
