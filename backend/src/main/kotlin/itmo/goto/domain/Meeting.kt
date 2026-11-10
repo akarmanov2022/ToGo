@@ -2,20 +2,43 @@ package itmo.goto.domain
 
 import java.time.Instant
 
+/**
+ * Событие так, как его видят правила: когда оно проходит, сколько людей собирает и в каком из пяти состояний
+ * находится.
+ *
+ * Каждый запрос сначала актуализирует состояние по серверному времени, поэтому запоздавшая фоновая обработка
+ * не оставит регистрацию открытой после срока организатора. Запросы не меняют встречу, а возвращают
+ * [Decision] со встречей для сохранения.
+ */
 class Meeting(
     private val schedule: Schedule,
     private val limits: Limits,
     private val participants: Int,
     private val state: State,
 ) {
+    /**
+     * Новая встреча в наборе, где организатор — единственный участник.
+     */
     constructor(schedule: Schedule, limits: Limits) : this(schedule, limits, 1, State.RECRUITING)
 
+    /**
+     * Сохранённое состояние, которое может отставать от часов, пока его не актуализирует [current].
+     */
     fun state(): State = state
 
+    /**
+     * Число участников вместе с организатором.
+     */
     fun participants(): Int = participants
 
+    /**
+     * Число свободных мест, которое клиенты видят как доступные места.
+     */
     fun free(): Int = limits.free(participants)
 
+    /**
+     * Встреча в своём состоянии на момент [now].
+     */
     fun current(now: Instant): Meeting = when (state) {
         State.RECRUITING if !schedule.open(now) ->
             Meeting(
@@ -24,15 +47,35 @@ class Meeting(
                 participants,
                 if (limits.reached(participants)) State.REGISTRATION_CLOSED else State.CANCELLED_BY_SYSTEM,
             ).current(now)
+
         State.REGISTRATION_CLOSED if schedule.ended(now) ->
             Meeting(schedule, limits, participants, State.FINISHED)
+
         else -> this
     }
 
+    /**
+     * Впускает постороннего, пока регистрация открыта, есть свободное место и в [agenda] нет встречи рядом
+     * по времени; проверки идут в этом порядке.
+     *
+     * Организатор и участники принимаются без изменений в любом состоянии.
+     */
     fun join(role: Role, agenda: Agenda, now: Instant): Decision = current(now).admission(role, agenda, now)
 
+    /**
+     * Выпускает участника, пока регистрация открыта, освобождая место без отмены встречи даже ниже минимума.
+     *
+     * Посторонние принимаются без изменений в любом состоянии; организатору всегда отказывается.
+     */
     fun leave(role: Role, now: Instant): Decision = current(now).departure(role)
 
+    /**
+     * Позволяет организатору задать новые [limits] и новый срок регистрации [deadline], пока регистрация открыта,
+     * если новый максимум вмещает текущих участников.
+     *
+     * Лимиты и срок уже должны пройти [Limits.violations] и [Schedule.violations]; иначе изменение падает
+     * с [IllegalArgumentException], потому что это ошибки валидации, а не отказы.
+     */
     fun change(role: Role, limits: Limits, deadline: Instant, now: Instant): Decision {
         require(limits.violations().isEmpty()) { "Meeting limits must pass their own checks before a change" }
         require(schedule.moved(deadline).violations(now).isEmpty()) {
@@ -41,8 +84,17 @@ class Meeting(
         return current(now).revision(role, limits, deadline)
     }
 
+    /**
+     * Позволяет организатору отменить встречу в наборе или с закрытой регистрацией до её начала.
+     *
+     * Повторная отмена встречи, уже отменённой организатором, принимается без изменений даже после начала.
+     */
     fun cancel(role: Role, now: Instant): Decision = current(now).cancellation(role, now)
 
+    /**
+     * Сообщает, действует ли встреча в момент [now] и начинается ли она меньше чем через три часа от расписания
+     * [other].
+     */
     fun clashes(other: Schedule, now: Instant): Boolean =
         current(now).state in setOf(State.RECRUITING, State.REGISTRATION_CLOSED) && schedule.near(other)
 
@@ -73,6 +125,7 @@ class Meeting(
         state == State.CANCELLED_BY_ORGANIZER -> Accepted(this)
         state in setOf(State.RECRUITING, State.REGISTRATION_CLOSED) && !schedule.started(now) ->
             Accepted(Meeting(schedule, limits, participants, State.CANCELLED_BY_ORGANIZER))
+
         else -> Refused(this, Refusal.INVALID_EVENT_STATE)
     }
 
