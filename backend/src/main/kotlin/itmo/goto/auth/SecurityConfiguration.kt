@@ -33,6 +33,13 @@ class SecurityConfiguration {
             .authorizeHttpRequests {
                 it.requestMatchers(HttpMethod.POST, "/api/v1/auth/telegram").permitAll()
                     .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                    .requestMatchers(
+                        HttpMethod.GET,
+                        "/swagger-ui.html",
+                        "/swagger-ui/**",
+                        "/v3/api-docs",
+                        "/v3/api-docs/**",
+                    ).permitAll()
                     .anyRequest().authenticated()
             }
             .oauth2ResourceServer { it.jwt { }.authenticationEntryPoint(challenge) }

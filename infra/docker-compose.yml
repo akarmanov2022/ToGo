@@ -3,14 +3,16 @@ services:
     image: postgres:18
     container_name: togodb
     environment:
-      POSTGRES_USER: ${DB_USER:-togo}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-togo}
+      POSTGRES_USER: ${DB_USER:-admin}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-12345678}
       POSTGRES_DB: togo
     hostname: togodb
     volumes:
       - postgres_data:/var/lib/postgresql
+    networks:
+      - database
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-togo} -d togo"]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-admin} -d togo" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -23,13 +25,17 @@ services:
     image: togo-backend:local
     container_name: togo-backend
     environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:?Задайте токен TELEGRAM_BOT_TOKEN}
       SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/togo
-      SPRING_DATASOURCE_USERNAME: ${DB_USER:-togo}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-togo}
+      SPRING_DATASOURCE_USERNAME: ${DB_USER:-admin}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-12345678}
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - web
+      - database
     restart: unless-stopped
 
   frontend:
@@ -38,11 +44,37 @@ services:
       dockerfile: Dockerfile
     image: togo-frontend:local
     container_name: togo-frontend
+    volumes:
+      - ./nginx/frontend:/etc/nginx/conf.d:ro
+    networks:
+      - web
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: togo-nginx
+    volumes:
+      - ./nginx/proxy:/etc/nginx/conf.d:ro
+      - type: bind
+        source: /etc/letsencrypt
+        target: /etc/letsencrypt
+        read_only: true
+        bind:
+          create_host_path: false
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
       - backend
+      - frontend
+    networks:
+      - web
     restart: unless-stopped
+
+networks:
+  web:
+  database:
+    internal: true
 
 volumes:
   postgres_data:

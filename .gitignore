@@ -9,7 +9,7 @@ node_modules/
 frontend/dist/
 *.tsbuildinfo
 
-.env
+infra/.env
 frontend/.env.local
 frontend/.env.*.local
 

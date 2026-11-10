@@ -47,18 +47,45 @@ Deployment is planned in `tasks.md` section 2.
 The contract drives the server.
 On `generate-sources`, `openapi-generator` (`kotlin-spring`, `serviceInterface=true`, `useTags=true`) writes controllers and one `*ApiService` interface per tag into `itmo.goto.generated.api` and DTOs into `itmo.goto.generated.model`, under `target/generated-sources/openapi`.
 Never edit generated code; change `api/openapi.yaml` first, then implement the regenerated interface.
-Hand-written classes in `itmo.goto.service` (such as `EventsService`) implement those interfaces; most methods still throw `501 NOT_IMPLEMENTED`.
+Hand-written classes in `itmo.goto.service` (such as `EventsService`) implement those interfaces; comments still throw
+`501 NOT_IMPLEMENTED`.
+`EventsService` hands each operation to the class responsible for it: `EventCreationService` creates events,
+`EventDelegateService` changes and cancels them, `EventParticipationService` joins, leaves, and lists participants, and
+`EventDiscoveryService` lists events and shows one.
+The listing turns each query parameter into one JPA `Specification` from `itmo.goto.repository` (`Titled`,
+`Categorized`, `StartingFrom`, `StartingBefore`, `Staged`, `Joined`, `Joinable`); `EventDiscoveryService` brings due
+events up to date before searching, so filters see current states.
 Contract changes must stay additive: existing fields and endpoints do not change, new ones are optional.
 
 Errors always use the contract's `ApiError { code, message, details }`, never problem details.
 Services signal refusals by throwing `itmo.goto.web.ApiFailure` with an `ApiError.Code`; the code alone decides the HTTP status.
 `ApiErrorHandler` turns validation, unreadable JSON, unknown fields (`fail-on-unknown-properties=true`), and unexpected exceptions into `ApiError`, hiding internal details on 500.
 
-Planned layering from `design.md` decision 4:
-event rules (participant limits, the five event states, join, leave, cancel) go into a framework-free `itmo.goto.domain` package that returns a new state or a typed refusal.
-Services load JPA entities, call the domain, and persist the result.
+Event rules live in the framework-free `itmo.goto.domain` package (`design.md` decision 4); services load JPA entities,
+build domain objects, call the rules, and persist the result.
+
+- `Meeting` is an event as the rules see it: a `Schedule` (registration deadline, start, end), `Limits` (minimum and
+  maximum participants), the participant count, and one of the five `State` values.
+- `Meeting.current(now)` brings the state up to date: at the deadline it becomes `REGISTRATION_CLOSED` or
+  `CANCELLED_BY_SYSTEM` by the minimum, at the end `REGISTRATION_CLOSED` becomes `FINISHED`, and cancelled states never
+  change.
+- `join`, `leave`, `change`, and `cancel` take the caller's `Role` (`ORGANIZER`, `PARTICIPANT`, `OUTSIDER`), update the
+  state first, and return a `Decision`.
+- A `Decision` is `Accepted` or `Refused`; `fold` hands over the meeting to persist in both cases, so a refused request
+  still saves a closed registration, and a `Refusal` is named after the contract's error code with a Russian message.
+- Joining as a participant and leaving as an outsider are accepted without changes, as the contract's idempotency
+  requires.
+- `Agenda` holds the caller's other meetings and finds a schedule conflict when one in `RECRUITING` or
+  `REGISTRATION_CLOSED` starts less than three hours away; joining and creating both check it.
+- Field rules return `Violation` lists for 400 responses: `Limits.violations()`, `Schedule.violations(now)`, and
+  `Point.violations()`. `change` requires valid limits, and a valid deadline only once role and state allow the change,
+  so a change that keeps a passed deadline is refused rather than failing; services validate a new deadline first.
+- The domain has its own `State` and `Refusal` enums; services translate them to the generated `EventState` and
+  `ApiError.Code`.
 Time always comes from the injected `java.time.Clock` bean (`ClockConfiguration`, UTC), so tests fix the clock instead of waiting.
 Join and leave lock the event row with `@Lock(PESSIMISTIC_WRITE)`, read the time after acquiring the lock, and keep the denormalized `events.participants_count` in sync (decision 6).
+Joining then locks the caller's user row, so two parallel joins by one user cannot both pass the schedule conflict rule; every operation keeps the order "event, then user".
+`EventDeadlineService.settle()` runs every minute (`SchedulingConfiguration` turns on scheduling) and brings events past their deadline or end up to date under the same lock; requests never rely on it, because each one brings its event up to date itself.
 
 Authentication lives in `itmo.goto.auth`.
 `TelegramLaunch` is a framework-free check of Mini App `initData` against `TELEGRAM_BOT_TOKEN` and the `Clock`.
@@ -79,6 +106,7 @@ JPA entities live in `itmo.goto.model` and Spring Data repositories in `itmo.got
 - Logging is turned off in `src/test/resources/logback-test.xml`.
 - `verify` fails when Kover reports less than 80% line or branch coverage of hand-written code; only `itmo.goto.generated` and `main` are excluded. Never lower the threshold or add exclusions to pass it.
 - Each service method that still answers 501 has a stub test; replace it with behavior tests when the method is implemented.
+- `EventParticipationRaceTest` checks concurrency on real commits: it turns off the test transaction, uses the system clock, holds row locks from a separate transaction, and bounds every wait with a timeout.
 - detekt (`backend/detekt.yml`, on top of the default rules) and ktlint (`.editorconfig`, `intellij_idea` style) check main and test code with zero tolerance and no baselines. Fix violations instead of suppressing them; every exception in `detekt.yml` carries a comment with its reason.
 
 ## Frontend architecture
