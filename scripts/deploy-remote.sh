@@ -3,8 +3,7 @@ set -Eeuo pipefail
 
 # Выполняется на GitHub runner. Секреты передаются только через окружение/stdin.
 for name in USER_IP USERNAME ROOT_PASSWORD DEPLOY_KNOWN_HOSTS \
-    DOCKERHUB_USERNAME DOCKERHUB_TOKEN TOGO_RELEASE_SHA \
-    GRAFANA_USER GRAFANA_PASSWORD; do
+    DOCKERHUB_USERNAME DOCKERHUB_TOKEN TOGO_RELEASE_SHAl do
     if [[ -z "${!name:-}" ]]; then
         echo "Не задан GitHub Secret или параметр: $name" >&2
         exit 1
