@@ -5,6 +5,8 @@ import itmo.goto.generated.api.AuthApiController
 import itmo.goto.generated.api.AuthApiService
 import itmo.goto.generated.api.CategoriesApiController
 import itmo.goto.generated.api.CategoriesApiService
+import itmo.goto.generated.api.CommentsApiController
+import itmo.goto.generated.api.CommentsApiService
 import itmo.goto.generated.api.EventsApiController
 import itmo.goto.generated.api.EventsApiService
 import itmo.goto.generated.api.UsersApiController
@@ -37,6 +39,7 @@ import kotlin.random.Random
     controllers = [
         AuthApiController::class,
         CategoriesApiController::class,
+        CommentsApiController::class,
         EventsApiController::class,
         UsersApiController::class,
     ],
@@ -53,6 +56,9 @@ class SecurityTest(
 
     @MockitoBean
     private lateinit var categories: CategoriesApiService
+
+    @MockitoBean
+    private lateinit var comments: CommentsApiService
 
     @MockitoBean
     private lateinit var events: EventsApiService
@@ -81,6 +87,13 @@ class SecurityTest(
     fun `event card without token answers unauthorized`() {
         assertThat(mvc.get().uri("/api/v1/events/{eventId}", UUID.randomUUID()))
             .withFailMessage("Event card without a token doesnt answer 401")
+            .hasStatus(HttpStatus.UNAUTHORIZED)
+    }
+
+    @Test
+    fun `event comments without token answer unauthorized`() {
+        assertThat(mvc.get().uri("/api/v1/events/{eventId}/comments", UUID.randomUUID()))
+            .withFailMessage("Event comments without a token dont answer 401")
             .hasStatus(HttpStatus.UNAUTHORIZED)
     }
 
