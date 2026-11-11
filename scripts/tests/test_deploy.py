@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import unittest
@@ -89,6 +90,11 @@ class DeploymentTests(unittest.TestCase):
         if not self.calls_file.exists():
             return []
         return [json.loads(line) for line in self.calls_file.read_text().splitlines()]
+
+    def test_nginx_validation_does_not_resolve_services_before_startup(self):
+        config = (ROOT / "infra/nginx/proxy/default.conf").read_text(encoding="utf-8")
+        static_upstreams = re.findall(r"proxy_pass\s+https?://([a-z][a-z0-9-]*):", config)
+        self.assertEqual(static_upstreams, [], "nginx -t would resolve an unstarted service")
 
     def deploy(self, fail_at=""):
         result = subprocess.run(
