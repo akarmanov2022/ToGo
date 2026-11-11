@@ -29,7 +29,8 @@ export function poiTileCoordinates(bounds?: PlaceBounds): { x: number; y: number
     throw new PlaceSearchAreaError('Приблизьте карту, чтобы найти места в этой области.')
   const tiles = []
   for (let tx = minX; tx <= maxX; tx++)
-    for (let ty = minY; ty <= maxY; ty++) tiles.push({ x: ((tx % 2 ** zoom) + 2 ** zoom) % 2 ** zoom, y: ty })
+    for (let ty = minY; ty <= maxY; ty++)
+      tiles.push({ x: ((tx % 2 ** zoom) + 2 ** zoom) % 2 ** zoom, y: ty })
   return tiles
 }
 

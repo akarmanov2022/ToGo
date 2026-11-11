@@ -17,7 +17,12 @@ vi.mock('leaflet', () => ({
       remove: vi.fn(),
       on: vi.fn(),
       off: vi.fn(),
-      getBounds: () => ({ getSouth: () => 59.915, getWest: () => 30.29, getNorth: () => 59.955, getEast: () => 30.38 }),
+      getBounds: () => ({
+        getSouth: () => 59.915,
+        getWest: () => 30.29,
+        getNorth: () => 59.955,
+        getEast: () => 30.38,
+      }),
       attributionControl: { setPrefix: vi.fn() },
     }
     return map

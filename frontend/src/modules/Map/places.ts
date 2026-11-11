@@ -27,7 +27,7 @@ export function placesQuery(category: string, bounds?: PlaceBounds): string {
             `[${JSON.stringify(key)}${value instanceof RegExp ? '~' : '='}${JSON.stringify(value instanceof RegExp ? value.source : value)}]`,
         )
         .join('')
-      return boxes.map(bbox => `nwr${filter}[name](${bbox.join(', ')});`)
+      return boxes.map((bbox) => `nwr${filter}[name](${bbox.join(', ')});`)
     })
     .join('')
   return `[out:json][timeout:15];(${statements});out body center 300;`
@@ -42,7 +42,11 @@ interface OsmElement {
   tags?: Record<string, string>
 }
 
-export function parsePlaces(elements: OsmElement[], category: string, bounds?: PlaceBounds): MeetingPlace[] {
+export function parsePlaces(
+  elements: OsmElement[],
+  category: string,
+  bounds?: PlaceBounds,
+): MeetingPlace[] {
   const places = new Map<string, MeetingPlace>()
   for (const element of elements) {
     const tags = element.tags ?? {}
@@ -59,7 +63,9 @@ export function parsePlaces(elements: OsmElement[], category: string, bounds?: P
       id: `osm-${element.type}-${element.id}`,
       name: tags['name:ru'] || tags.name,
       // У OSM адрес может отсутствовать: не выдумываем улицу или номер дома.
-      address: address ? `${tags['name:ru'] || tags.name}, ${address}` : tags['name:ru'] || tags.name,
+      address: address
+        ? `${tags['name:ru'] || tags.name}, ${address}`
+        : tags['name:ru'] || tags.name,
       latitude: latitude!,
       longitude: longitude!,
       category,

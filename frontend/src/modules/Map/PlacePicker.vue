@@ -25,7 +25,13 @@ const props = withDefaults(
     searching?: boolean
     searchEnabled?: boolean
   }>(),
-  { showEmpty: true, searchable: false, searchedBounds: undefined, searching: false, searchEnabled: true },
+  {
+    showEmpty: true,
+    searchable: false,
+    searchedBounds: undefined,
+    searching: false,
+    searchEnabled: true,
+  },
 )
 const emit = defineEmits<{
   'update:modelValue': [value: MeetingPlace | null]
@@ -34,7 +40,11 @@ const emit = defineEmits<{
 }>()
 const labelId = useId()
 const container = ref<HTMLElement | null>(null)
-const selected = computed(() => props.places.find((place) => place.id === props.modelValue?.id) ?? (props.searchable ? props.modelValue : undefined))
+const selected = computed(
+  () =>
+    props.places.find((place) => place.id === props.modelValue?.id) ??
+    (props.searchable ? props.modelValue : undefined),
+)
 const visibleBounds = ref<PlaceBounds>()
 const listOpen = ref(false)
 const listQuery = ref('')
@@ -47,9 +57,13 @@ const panelAbove = ref(false)
 const { offset: listOffset } = usePopover(listOpen, listRoot, listPanel)
 const filteredPlaces = computed(() => {
   const query = listQuery.value.trim().toLocaleLowerCase('ru-RU')
-  return props.places.filter(place => `${place.name} ${place.address}`.toLocaleLowerCase('ru-RU').includes(query))
+  return props.places.filter((place) =>
+    `${place.name} ${place.address}`.toLocaleLowerCase('ru-RU').includes(query),
+  )
 })
-watch(listQuery, () => { activeIndex.value = 0 })
+watch(listQuery, () => {
+  activeIndex.value = 0
+})
 watch(activeIndex, async () => {
   await nextTick()
   listPanel.value?.querySelector('.is-active')?.scrollIntoView?.({ block: 'nearest' })
@@ -58,10 +72,15 @@ async function toggleList() {
   listOpen.value = !listOpen.value
   if (!listOpen.value) return
   listQuery.value = ''
-  activeIndex.value = Math.max(0, props.places.findIndex(place => place.id === selected.value?.id))
+  activeIndex.value = Math.max(
+    0,
+    props.places.findIndex((place) => place.id === selected.value?.id),
+  )
   await nextTick()
   const rect = listTrigger.value?.getBoundingClientRect()
-  if (rect) panelAbove.value = window.innerHeight - rect.bottom < 280 && rect.top > window.innerHeight - rect.bottom
+  if (rect)
+    panelAbove.value =
+      window.innerHeight - rect.bottom < 280 && rect.top > window.innerHeight - rect.bottom
   listPanel.value?.querySelector('input')?.focus()
 }
 function closeList() {
@@ -70,11 +89,15 @@ function closeList() {
 }
 function listKey(event: KeyboardEvent) {
   if (!listOpen.value) return
-  if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeList() }
-  else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    event.stopPropagation()
+    closeList()
+  } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault()
     const count = filteredPlaces.value.length
-    if (count) activeIndex.value = (activeIndex.value + (event.key === 'ArrowDown' ? 1 : -1) + count) % count
+    if (count)
+      activeIndex.value = (activeIndex.value + (event.key === 'ArrowDown' ? 1 : -1) + count) % count
   } else if (event.key === 'Enter') {
     event.preventDefault()
     const place = filteredPlaces.value[activeIndex.value]
@@ -82,12 +105,25 @@ function listKey(event: KeyboardEvent) {
   }
 }
 function leaveList(event: FocusEvent) {
-  if (event.relatedTarget && !listRoot.value?.contains(event.relatedTarget as Node)) listOpen.value = false
+  if (event.relatedTarget && !listRoot.value?.contains(event.relatedTarget as Node))
+    listOpen.value = false
 }
-const areaChanged = computed(() => visibleBounds.value && (!props.searchedBounds || visibleBounds.value.some((value, index) => Math.abs(value - props.searchedBounds![index]!) > 0.00001)))
+const areaChanged = computed(
+  () =>
+    visibleBounds.value &&
+    (!props.searchedBounds ||
+      visibleBounds.value.some(
+        (value, index) => Math.abs(value - props.searchedBounds![index]!) > 0.00001,
+      )),
+)
 const areaError = computed(() => {
   if (!visibleBounds.value) return ''
-  try { poiTileCoordinates(visibleBounds.value); return '' } catch (error) { return error instanceof Error ? error.message : 'Приблизьте карту' }
+  try {
+    poiTileCoordinates(visibleBounds.value)
+    return ''
+  } catch (error) {
+    return error instanceof Error ? error.message : 'Приблизьте карту'
+  }
 })
 const tileStatus = ref<'loading' | 'ready' | 'error'>('loading')
 let instance: LeafletMap | undefined
@@ -212,7 +248,13 @@ watch(
   { deep: true, immediate: true },
 )
 watch(() => props.places, renderPlaces, { deep: true })
-watch(() => props.places, () => { listQuery.value = ''; listOpen.value = false })
+watch(
+  () => props.places,
+  () => {
+    listQuery.value = ''
+    listOpen.value = false
+  },
+)
 
 onMounted(() => {
   if (!container.value) return
@@ -272,11 +314,23 @@ onBeforeUnmount(() => {
     />
     <template v-if="searchable">
       <p v-if="areaError" class="place-picker__hint" role="status">{{ areaError }}</p>
-      <AppButton v-if="(areaChanged || searching) && searchEnabled" size="sm" variant="secondary" :disabled="Boolean(areaError) || searching" :aria-busy="searching" @click="searchArea"
-        ><span v-if="searching" class="place-picker__spinner" aria-hidden="true" />{{ searching ? 'Ищем места…' : 'Искать в этой области' }}</AppButton
+      <AppButton
+        v-if="(areaChanged || searching) && searchEnabled"
+        size="sm"
+        variant="secondary"
+        :disabled="Boolean(areaError) || searching"
+        :aria-busy="searching"
+        @click="searchArea"
+        ><span v-if="searching" class="place-picker__spinner" aria-hidden="true" />{{
+          searching ? 'Ищем места…' : 'Искать в этой области'
+        }}</AppButton
       >
-      <p v-if="searching" class="place-picker__hint" role="status">Обновляем места в выбранной области…</p>
-      <p v-else-if="!areaChanged && places.length" class="place-picker__hint" role="status">Найдено мест: {{ places.length }}{{ places.length === 300 ? ' (показаны первые 300)' : '' }}</p>
+      <p v-if="searching" class="place-picker__hint" role="status">
+        Обновляем места в выбранной области…
+      </p>
+      <p v-else-if="!areaChanged && places.length" class="place-picker__hint" role="status">
+        Найдено мест: {{ places.length }}{{ places.length === 300 ? ' (показаны первые 300)' : '' }}
+      </p>
     </template>
     <p v-if="tileStatus === 'loading'" class="place-picker__hint" role="status">Загружаем карту…</p>
     <div v-else-if="tileStatus === 'error'" class="place-picker__error" role="status">
@@ -286,44 +340,127 @@ onBeforeUnmount(() => {
       </AppButton>
     </div>
     <div ref="listRoot" class="place-picker__choices" @keydown="listKey" @focusout="leaveList">
-      <div class="place-picker__summary" :class="{ 'place-picker__summary--retained': selected && !places.length }" role="status">
-        <button v-if="places.length" ref="listTrigger" type="button" class="place-picker__list-toggle" :class="{ 'is-placeholder': !selected, 'is-open': listOpen }" aria-haspopup="dialog" :aria-expanded="listOpen" :aria-controls="listId" @click="toggleList">
-          <svg class="place-picker__pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>
-          <span class="place-picker__value">{{ selected?.name ?? 'Выберите место из списка' }}</span>
+      <div
+        class="place-picker__summary"
+        :class="{ 'place-picker__summary--retained': selected && !places.length }"
+        role="status"
+      >
+        <button
+          v-if="places.length"
+          ref="listTrigger"
+          type="button"
+          class="place-picker__list-toggle"
+          :class="{ 'is-placeholder': !selected, 'is-open': listOpen }"
+          aria-haspopup="dialog"
+          :aria-expanded="listOpen"
+          :aria-controls="listId"
+          @click="toggleList"
+        >
+          <svg
+            class="place-picker__pin"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            aria-hidden="true"
+          >
+            <path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z" />
+            <circle cx="12" cy="10" r="2.5" />
+          </svg>
+          <span class="place-picker__value">{{
+            selected?.name ?? 'Выберите место из списка'
+          }}</span>
           <span v-if="!selected" class="place-picker__count">{{ places.length }}</span>
-          <svg class="place-picker__chevron" :class="{ flipped: listOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          <svg
+            class="place-picker__chevron"
+            :class="{ flipped: listOpen }"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
         </button>
         <strong v-else-if="selected">{{ selected.name }}</strong>
         <p v-else>Место не выбрано</p>
-        <p v-if="selected && selected.address !== selected.name" class="place-picker__address">{{ selected.address }}</p>
-        <p v-if="selected && searchable && !places.some(place => place.id === selected?.id)" class="place-picker__hint">Выбранное место сохранено. Новый поиск не меняет ваш выбор.</p>
-      </div>
-      <div v-if="listOpen && places.length" :id="listId" ref="listPanel" class="place-picker__panel" :class="{ 'is-above': panelAbove }" role="dialog" aria-label="Выбор места встречи" :style="listOffset ? { left: `${listOffset}px` } : undefined">
-        <label class="place-picker__search">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
-          <input v-model="listQuery" type="search" role="combobox" aria-autocomplete="list" aria-label="Поиск среди найденных мест" placeholder="Найти место по названию" :aria-controls="`${listId}-options`" aria-expanded="true" :aria-activedescendant="filteredPlaces.length ? `${listId}-option-${activeIndex}` : undefined" autocomplete="off" />
-        </label>
-        <p class="place-picker__list-caption">Места на карте <span>{{ filteredPlaces.length }}</span></p>
-        <ul :id="`${listId}-options`" class="place-picker__list" role="listbox" aria-label="Предложенные места встречи">
-      <li v-for="(place, index) in filteredPlaces" :key="place.id" role="presentation">
-        <button
-          type="button"
-          class="place-picker__option"
-          :class="{ 'is-active': index === activeIndex }"
-          :id="`${listId}-option-${index}`"
-          role="option"
-          tabindex="-1"
-          :aria-selected="selected?.id === place.id"
-          :aria-pressed="selected?.id === place.id"
-          @click="selectPlace(place.id)"
-          @mousemove="activeIndex = index"
+        <p v-if="selected && selected.address !== selected.name" class="place-picker__address">
+          {{ selected.address }}
+        </p>
+        <p
+          v-if="selected && searchable && !places.some((place) => place.id === selected?.id)"
+          class="place-picker__hint"
         >
-          <strong>{{ place.name }}</strong>
-          <span v-if="selected?.id === place.id" aria-label="Выбрано">✓</span>
-        </button>
-      </li>
-    </ul>
-        <p v-if="!filteredPlaces.length" class="place-picker__hint">Ничего не найдено по этому названию.</p>
+          Выбранное место сохранено. Новый поиск не меняет ваш выбор.
+        </p>
+      </div>
+      <div
+        v-if="listOpen && places.length"
+        :id="listId"
+        ref="listPanel"
+        class="place-picker__panel"
+        :class="{ 'is-above': panelAbove }"
+        role="dialog"
+        aria-label="Выбор места встречи"
+        :style="listOffset ? { left: `${listOffset}px` } : undefined"
+      >
+        <label class="place-picker__search">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            aria-hidden="true"
+          >
+            <circle cx="10.5" cy="10.5" r="6.5" />
+            <path d="m16 16 5 5" />
+          </svg>
+          <input
+            v-model="listQuery"
+            type="search"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-label="Поиск среди найденных мест"
+            placeholder="Найти место по названию"
+            :aria-controls="`${listId}-options`"
+            aria-expanded="true"
+            :aria-activedescendant="
+              filteredPlaces.length ? `${listId}-option-${activeIndex}` : undefined
+            "
+            autocomplete="off"
+          />
+        </label>
+        <p class="place-picker__list-caption">
+          Места на карте <span>{{ filteredPlaces.length }}</span>
+        </p>
+        <ul
+          :id="`${listId}-options`"
+          class="place-picker__list"
+          role="listbox"
+          aria-label="Предложенные места встречи"
+        >
+          <li v-for="(place, index) in filteredPlaces" :key="place.id" role="presentation">
+            <button
+              type="button"
+              class="place-picker__option"
+              :class="{ 'is-active': index === activeIndex }"
+              :id="`${listId}-option-${index}`"
+              role="option"
+              tabindex="-1"
+              :aria-selected="selected?.id === place.id"
+              :aria-pressed="selected?.id === place.id"
+              @click="selectPlace(place.id)"
+              @mousemove="activeIndex = index"
+            >
+              <strong>{{ place.name }}</strong>
+              <span v-if="selected?.id === place.id" aria-label="Выбрано">✓</span>
+            </button>
+          </li>
+        </ul>
+        <p v-if="!filteredPlaces.length" class="place-picker__hint">
+          Ничего не найдено по этому названию.
+        </p>
       </div>
     </div>
     <p v-if="!places.length && showEmpty" class="place-picker__hint">
@@ -356,11 +493,21 @@ onBeforeUnmount(() => {
   color: var(--color-text);
   font-size: 13px;
 }
-.place-picker__summary--retained { padding: 12px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); }
+.place-picker__summary--retained {
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+}
 .place-picker__summary p {
   margin: 6px 0 0;
 }
-.place-picker__address { color: var(--color-text-subtle); font-size: 12px; line-height: 1.5; padding: 0 4px; }
+.place-picker__address {
+  color: var(--color-text-subtle);
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 0 4px;
+}
 .place-picker__list {
   max-height: min(220px, 32dvh);
   overflow-y: auto;
@@ -369,7 +516,11 @@ onBeforeUnmount(() => {
   padding: 0;
   list-style: none;
 }
-.place-picker__choices { position: relative; min-width: 0; margin-top: 10px; }
+.place-picker__choices {
+  position: relative;
+  min-width: 0;
+  margin-top: 10px;
+}
 .place-picker__list-toggle {
   display: flex;
   align-items: center;
@@ -386,20 +537,101 @@ onBeforeUnmount(() => {
   font-weight: 700;
   cursor: pointer;
 }
-.place-picker__list-toggle.is-placeholder { font-weight: 400; color: var(--color-text-subtle); }
-.place-picker__list-toggle.is-open, .place-picker__list-toggle:hover { border-color: #b79cd6; }
-.place-picker__pin, .place-picker__chevron { width: 18px; height: 18px; flex: none; color: var(--color-text-subtle); }
-.place-picker__chevron { margin-left: auto; transition: transform 0.15s; }
-.place-picker__chevron.flipped { transform: rotate(180deg); }
-.place-picker__value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
-.place-picker__count { flex: none; border-radius: 7px; background: var(--color-blue-soft); padding: 2px 6px; font-size: 11px; color: var(--color-text-subtle); }
-.place-picker__panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 45; width: 100%; max-width: calc(100vw - 32px); padding: 8px; border: 1px solid #edcfe2; border-radius: 14px; background: var(--color-surface); box-shadow: 0 18px 44px #29265729; }
-.place-picker__panel.is-above { top: auto; bottom: calc(100% + 6px); }
-.place-picker__search { display: flex; align-items: center; gap: 8px; padding: 0 10px; height: 40px; border: 1px solid var(--color-input-border); border-radius: 9px; background: var(--color-bg); }
-.place-picker__search svg { width: 17px; height: 17px; flex: none; color: var(--color-text-subtle); }
-.place-picker__search input { width: 100%; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; background: transparent; color: var(--color-text); font: inherit; font-size: 13px; }
-.place-picker__search:focus-within { border-color: #b79cd6; box-shadow: 0 0 0 2px #edcfe255; }
-.place-picker__list-caption { display: flex; align-items: center; justify-content: space-between; margin: 10px 8px 5px; color: var(--color-text-subtle); font-size: 11px; font-weight: 700; }
+.place-picker__list-toggle.is-placeholder {
+  font-weight: 400;
+  color: var(--color-text-subtle);
+}
+.place-picker__list-toggle.is-open,
+.place-picker__list-toggle:hover {
+  border-color: #b79cd6;
+}
+.place-picker__pin,
+.place-picker__chevron {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--color-text-subtle);
+}
+.place-picker__chevron {
+  margin-left: auto;
+  transition: transform 0.15s;
+}
+.place-picker__chevron.flipped {
+  transform: rotate(180deg);
+}
+.place-picker__value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.place-picker__count {
+  flex: none;
+  border-radius: 7px;
+  background: var(--color-blue-soft);
+  padding: 2px 6px;
+  font-size: 11px;
+  color: var(--color-text-subtle);
+}
+.place-picker__panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 45;
+  width: 100%;
+  max-width: calc(100vw - 32px);
+  padding: 8px;
+  border: 1px solid #edcfe2;
+  border-radius: 14px;
+  background: var(--color-surface);
+  box-shadow: 0 18px 44px #29265729;
+}
+.place-picker__panel.is-above {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+.place-picker__search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  height: 40px;
+  border: 1px solid var(--color-input-border);
+  border-radius: 9px;
+  background: var(--color-bg);
+}
+.place-picker__search svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+  color: var(--color-text-subtle);
+}
+.place-picker__search input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+}
+.place-picker__search:focus-within {
+  border-color: #b79cd6;
+  box-shadow: 0 0 0 2px #edcfe255;
+}
+.place-picker__list-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 10px 8px 5px;
+  color: var(--color-text-subtle);
+  font-size: 11px;
+  font-weight: 700;
+}
 .place-picker__option {
   display: flex;
   justify-content: space-between;
@@ -416,8 +648,13 @@ onBeforeUnmount(() => {
   font-family: inherit;
   cursor: pointer;
 }
-.place-picker__option:hover, .place-picker__option.is-active { background: var(--color-blue-soft); }
-.place-picker__option strong { font-weight: 600; }
+.place-picker__option:hover,
+.place-picker__option.is-active {
+  background: var(--color-blue-soft);
+}
+.place-picker__option strong {
+  font-weight: 600;
+}
 .place-picker__option[aria-pressed='true'] {
   border-color: #a63872;
   background: #fbd5e6;
@@ -433,7 +670,23 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   gap: 8px;
 }
-.place-picker__spinner { width: 13px; height: 13px; margin-right: 7px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: place-spin 0.7s linear infinite; }
-@keyframes place-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .place-picker__spinner { animation: none; } }
+.place-picker__spinner {
+  width: 13px;
+  height: 13px;
+  margin-right: 7px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: place-spin 0.7s linear infinite;
+}
+@keyframes place-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .place-picker__spinner {
+    animation: none;
+  }
+}
 </style>

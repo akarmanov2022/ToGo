@@ -58,12 +58,32 @@ it('отменяет старый поиск при смене категори�
 })
 
 it('сохраняет старые точки во время поиска новой области, но не при смене категории', async () => {
-  const fetch = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ elements: [{ type: 'node', id: 1, lat: 55.76, lon: 37.62, tags: { name: 'Кино в Москве' } }] }))).mockImplementation(() => new Promise(() => {}))
+  const fetch = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          elements: [
+            { type: 'node', id: 1, lat: 55.76, lon: 37.62, tags: { name: 'Кино в Москве' } },
+          ],
+        }),
+      ),
+    )
+    .mockImplementation(() => new Promise(() => {}))
   vi.stubGlobal('fetch', fetch)
   const bounds = ref<PlaceBounds>([55.75, 37.6, 55.77, 37.64])
   const category = ref('CINEMA')
   const client = new QueryClient()
-  const wrapper = mount(defineComponent({ setup() { const places = useMeetingPlaces(category, true, bounds); return { data: places.data, loading: places.isFetching } }, template: '<div>{{ data?.[0]?.name }} {{ loading }}</div>' }), { global: { plugins: [[VueQueryPlugin, { queryClient: client }]] } })
+  const wrapper = mount(
+    defineComponent({
+      setup() {
+        const places = useMeetingPlaces(category, true, bounds)
+        return { data: places.data, loading: places.isFetching }
+      },
+      template: '<div>{{ data?.[0]?.name }} {{ loading }}</div>',
+    }),
+    { global: { plugins: [[VueQueryPlugin, { queryClient: client }]] } },
+  )
   try {
     await flushPromises()
     expect(wrapper.text()).toContain('Кино в Москве')
@@ -73,5 +93,8 @@ it('сохраняет старые точки во время поиска но
     category.value = 'CAFE'
     await flushPromises()
     expect(wrapper.text()).not.toContain('Кино в Москве')
-  } finally { wrapper.unmount(); client.clear() }
+  } finally {
+    wrapper.unmount()
+    client.clear()
+  }
 })

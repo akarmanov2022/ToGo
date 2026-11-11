@@ -10,8 +10,14 @@ const leaflet = vi.hoisted(() => {
   const instance = {
     setView: vi.fn(() => instance),
     fitBounds: vi.fn(),
-    on: vi.fn((event: string, handler: () => void) => { mapHandlers.set(event, handler); return instance }),
-    off: vi.fn((event: string) => { mapHandlers.delete(event); return instance }),
+    on: vi.fn((event: string, handler: () => void) => {
+      mapHandlers.set(event, handler)
+      return instance
+    }),
+    off: vi.fn((event: string) => {
+      mapHandlers.delete(event)
+      return instance
+    }),
     invalidateSize: vi.fn(),
     remove: vi.fn(),
     getBounds: vi.fn(() => ({
@@ -77,7 +83,12 @@ beforeEach(() => {
   vi.clearAllMocks()
   leaflet.tileHandlers.clear()
   leaflet.mapHandlers.clear()
-  leaflet.instance.getBounds.mockReturnValue({ getSouth: () => 59.925, getWest: () => 30.3, getNorth: () => 59.95, getEast: () => 30.38 })
+  leaflet.instance.getBounds.mockReturnValue({
+    getSouth: () => 59.925,
+    getWest: () => 30.3,
+    getNorth: () => 59.95,
+    getEast: () => 30.38,
+  })
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -142,17 +153,33 @@ it('передаёт область карты для POI-поиска и не �
 })
 
 it('после перемещения предлагает поиск, но не запускает его автоматически; показывает загрузку', async () => {
-  const wrapper = mount(PlacePicker, { props: { modelValue: null, places, searchable: true, searchedBounds: [59.925, 30.3, 59.95, 30.38] } })
+  const wrapper = mount(PlacePicker, {
+    props: {
+      modelValue: null,
+      places,
+      searchable: true,
+      searchedBounds: [59.925, 30.3, 59.95, 30.38],
+    },
+  })
   expect(wrapper.text()).not.toContain('Искать в этой области')
-  leaflet.instance.getBounds.mockReturnValue({ getSouth: () => 55.75, getWest: () => 37.6, getNorth: () => 55.77, getEast: () => 37.64 })
+  leaflet.instance.getBounds.mockReturnValue({
+    getSouth: () => 55.75,
+    getWest: () => 37.6,
+    getNorth: () => 55.77,
+    getEast: () => 37.64,
+  })
   leaflet.mapHandlers.get('moveend')!()
   await nextTick()
   expect(wrapper.emitted('searchArea')).toBeUndefined()
-  const button = wrapper.findAll('button').find(button => button.text() === 'Искать в этой области')!
+  const button = wrapper
+    .findAll('button')
+    .find((button) => button.text() === 'Искать в этой области')!
   await button.trigger('click')
   expect(wrapper.emitted('searchArea')).toEqual([[[55.75, 37.6, 55.77, 37.64]]])
   await wrapper.setProps({ searching: true, searchedBounds: [55.75, 37.6, 55.77, 37.64] })
-  const searching = wrapper.findAll('button').find(button => button.text().includes('Ищем места'))!
+  const searching = wrapper
+    .findAll('button')
+    .find((button) => button.text().includes('Ищем места'))!
   expect(searching.attributes('disabled')).toBeDefined()
   expect(searching.attributes('aria-busy')).toBe('true')
   expect(wrapper.find('.place-picker__spinner').exists()).toBe(true)
@@ -175,7 +202,9 @@ it('показывает компактный выпадающий список 
 })
 
 it('не сбрасывает выбранное место при поиске в другой области', async () => {
-  const wrapper = mount(PlacePicker, { props: { modelValue: places[0]!, places, searchable: true } })
+  const wrapper = mount(PlacePicker, {
+    props: { modelValue: places[0]!, places, searchable: true },
+  })
   await wrapper.setProps({ places: [] })
   expect(wrapper.emitted('update:modelValue')).toBeUndefined()
   expect(wrapper.get('.place-picker__summary').text()).toContain(places[0]!.name)

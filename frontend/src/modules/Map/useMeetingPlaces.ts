@@ -19,7 +19,8 @@ export function useMeetingPlaces(
     enabled: computed(() => Boolean(toValue(category)) && toValue(enabled)),
     placeholderData: computed(() => {
       const code = toValue(category)
-      return (previous: MeetingPlace[] | undefined) => previous?.every(place => place.category === code) ? previous : undefined
+      return (previous: MeetingPlace[] | undefined) =>
+        previous?.every((place) => place.category === code) ? previous : undefined
     }),
     staleTime: 30 * 60_000,
     gcTime: 60 * 60_000,

@@ -198,7 +198,7 @@ function digits(field: 'minUsers' | 'maxUsers', event: Event) {
         <p v-if="touched && errors.description" class="error">{{ errors.description }}</p>
         <EventSchedule v-model="draft.schedule" :show-errors="touched" />
         <p v-if="!draft.category" class="hint">
-            Сначала выберите категорию, чтобы найти места в видимой области карты.
+          Сначала выберите категорию, чтобы найти места в видимой области карты.
         </p>
         <div v-else-if="places.isError.value" role="status">
           <p class="error">{{ places.error.value?.message || 'Не удалось загрузить места' }}</p>
