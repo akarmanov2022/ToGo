@@ -1,5 +1,6 @@
 import { enableAutoUnmount, mount } from '@vue/test-utils'
 import { afterEach, expect, it } from 'vitest'
+import { nextTick } from 'vue'
 import CalendarPicker from './CalendarPicker.vue'
 
 enableAutoUnmount(afterEach)
@@ -25,4 +26,13 @@ it('позволяет очистить дату, не подставляя те
   await wrapper.get('.calendar-toggle').trigger('click')
   await wrapper.get('.calendar-clear').trigger('click')
   expect(wrapper.emitted('update:modelValue')).toEqual([['']])
+})
+
+it('раскрывает панель поверх вёрстки и закрывает её по клику вне поля', async () => {
+  const wrapper = mount(CalendarPicker, { props: { modelValue: '', min: '2026-02-01' } })
+  await wrapper.get('.calendar-toggle').trigger('click')
+  expect(wrapper.find('.calendar-panel').exists()).toBe(true)
+  document.dispatchEvent(new Event('pointerdown'))
+  await nextTick()
+  expect(wrapper.find('.calendar-panel').exists()).toBe(false)
 })

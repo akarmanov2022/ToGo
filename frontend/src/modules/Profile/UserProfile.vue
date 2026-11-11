@@ -8,6 +8,7 @@ import AppChip from '@/common/ui/AppChip.vue'
 import AppField from '@/common/ui/AppField.vue'
 import ChipGroup from '@/common/ui/ChipGroup.vue'
 import LoadingText from '@/common/ui/LoadingText.vue'
+import { currentUserKey, useAuthStore } from '@/modules/Auth'
 import {
   EventCard,
   fetchCategories,
@@ -16,19 +17,13 @@ import {
   participantsLine,
   stateLabel,
   isVisibleInFeed,
-  type EventCategory,
   type EventDto,
 } from '@/modules/Events'
-import {
-  avatarLetter,
-  fetchCurrentUser,
-  fetchUserProfile,
-  updateCurrentUser,
-  type CurrentUser,
-  type UserProfile,
-} from './api'
+import { avatarLetter, updateCurrentUser } from './api'
+import { useProfile } from './useProfile'
 
 const props = defineProps<{ userId?: string }>()
+const auth = useAuthStore()
 const queryClient = useQueryClient()
 const isOwn = computed(() => !props.userId)
 
@@ -40,21 +35,17 @@ watch(isOwn, () => {
   tab.value = tabs.value[0]
 })
 
-const profileQuery = useQuery({
-  queryKey: computed(() => (props.userId ? ['users', props.userId] : ['current-user'])),
-  queryFn: () => (props.userId ? fetchUserProfile(props.userId) : fetchCurrentUser()),
-})
+const profileQuery = useProfile(() => props.userId)
 const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
 const categoryNames = computed(
   () => new Map((categoriesQuery.data.value ?? []).map((item) => [item.code, item.name])),
 )
 
-const profile = computed(() => profileQuery.data.value as CurrentUser | UserProfile | undefined)
+const profile = profileQuery.data
 
 const editing = ref(false)
 const name = ref('')
 const city = ref('')
-const selected = ref<EventCategory[]>([])
 const saveError = ref('')
 const saving = ref(false)
 
@@ -64,29 +55,26 @@ watch(
     if (!value || !isOwn.value) return
     name.value = value.name
     city.value = value.city ?? ''
-    selected.value = [...value.categories]
   },
   { immediate: true },
 )
 
-function toggleCategory(code: EventCategory) {
-  selected.value = selected.value.includes(code)
-    ? selected.value.filter((item) => item !== code)
-    : [...selected.value, code]
-}
-
 async function saveProfile() {
-  if (saving.value || !isOwn.value) return
+  if (saving.value || !isOwn.value || !profile.value) return
   saveError.value = ''
   saving.value = true
   try {
-    await updateCurrentUser({
+    const saved = await updateCurrentUser({
       name: name.value.trim(),
       city: city.value.trim() ? city.value.trim() : null,
-      categories: selected.value,
+      // Поле пока обязательно в PUT-контракте, но больше не редактируется в UI.
+      categories: [...profile.value.categories],
     })
+    // Поздний ответ старой сессии не должен восстанавливать очищенный приватный кеш.
+    if (auth.status !== 'authenticated' || auth.user?.id !== saved.id) return
+    queryClient.setQueryData(currentUserKey(saved.id), saved)
     editing.value = false
-    await queryClient.invalidateQueries({ queryKey: ['current-user'] })
+    await queryClient.invalidateQueries({ queryKey: ['users', saved.id] })
   } catch (error) {
     saveError.value = error instanceof ApiError ? error.message : 'Не удалось сохранить профиль'
   } finally {
@@ -94,16 +82,15 @@ async function saveProfile() {
   }
 }
 
-const upcomingQuery = useQuery({
-  queryKey: ['events', 'mine', 'upcoming'],
-  queryFn: () => fetchMyEvents({ startsFrom: new Date().toISOString(), order: 'asc' }),
-  enabled: isOwn,
-})
-const organizedQuery = useQuery({
-  queryKey: ['events', 'mine', 'organized'],
+const meetingsQuery = useQuery({
+  queryKey: ['events', 'mine', 'all'],
   queryFn: async () => {
-    const page = await fetchMyEvents({ startsFrom: new Date().toISOString(), order: 'asc' })
-    return { ...page, items: page.items.filter((event) => event.isOrganizer) }
+    const boundary = new Date().toISOString()
+    const [future, past] = await Promise.all([
+      fetchMyEvents({ startsFrom: boundary, order: 'asc' }),
+      fetchMyEvents({ startsTo: boundary, order: 'desc' }),
+    ])
+    return [...new Map([...future.items, ...past.items].map((event) => [event.id, event])).values()]
   },
   enabled: isOwn,
 })
@@ -124,25 +111,22 @@ const archiveQuery = useQuery({
 
 const list = computed(() => {
   if (!isOwn.value) return [] as EventDto[]
-  if (tab.value === 'Я иду') return upcomingQuery.data.value?.items.filter(isVisibleInFeed) ?? []
+  if (tab.value === 'Я иду') return meetingsQuery.data.value?.filter(isVisibleInFeed) ?? []
   if (tab.value === 'Мои события')
-    return organizedQuery.data.value?.items.filter(isVisibleInFeed) ?? []
+    return meetingsQuery.data.value?.filter((event) => event.isOrganizer) ?? []
   return archiveQuery.data.value?.items ?? []
 })
 
 const listPending = computed(() => {
-  if (tab.value === 'Я иду') return upcomingQuery.isPending.value
-  if (tab.value === 'Мои события') return organizedQuery.isPending.value
+  if (tab.value !== 'Архив') return meetingsQuery.isPending.value
   return archiveQuery.isPending.value
 })
 const listError = computed(() => {
-  if (tab.value === 'Я иду') return upcomingQuery.isError.value
-  if (tab.value === 'Мои события') return organizedQuery.isError.value
+  if (tab.value !== 'Архив') return meetingsQuery.isError.value
   return archiveQuery.isError.value
 })
 function refetchList() {
-  if (tab.value === 'Я иду') return upcomingQuery.refetch()
-  if (tab.value === 'Мои события') return organizedQuery.refetch()
+  if (tab.value !== 'Архив') return meetingsQuery.refetch()
   return archiveQuery.refetch()
 }
 </script>
@@ -153,7 +137,7 @@ function refetchList() {
     </p>
     <div v-else-if="profileQuery.isError.value" class="state">
       <p>Не удалось загрузить профиль.</p>
-      <AppButton variant="secondary" @click="profileQuery.refetch()">Повторить</AppButton>
+      <AppButton size="sm" variant="secondary" @click="profileQuery.refetch()">Повторить</AppButton>
     </div>
     <template v-else-if="profile">
       <AppCard as="aside" class="summary">
@@ -177,29 +161,11 @@ function refetchList() {
             >посещено
           </div>
         </div>
-        <div class="interests">
-          <AppChip v-for="code in profile.categories" :key="code" as="span">
-            {{ categoryNames.get(code) ?? code }}
-          </AppChip>
-        </div>
         <template v-if="isOwn">
           <AppButton v-if="!editing" block @click="editing = true">Редактировать профиль</AppButton>
           <form v-else class="edit" @submit.prevent="saveProfile">
             <AppField v-model="name" label="Имя" maxlength="100" required />
             <AppField v-model="city" label="Город" maxlength="100" />
-            <fieldset>
-              <legend>Интересы</legend>
-              <ChipGroup>
-                <AppChip
-                  v-for="item in categoriesQuery.data.value ?? []"
-                  :key="item.code"
-                  :active="selected.includes(item.code)"
-                  @click="toggleCategory(item.code)"
-                >
-                  {{ item.name }}
-                </AppChip>
-              </ChipGroup>
-            </fieldset>
             <AppButton type="submit" block :disabled="saving">
               {{ saving ? 'Сохраняем…' : 'Сохранить' }}
             </AppButton>
@@ -225,7 +191,7 @@ function refetchList() {
           </p>
           <div v-else-if="listError" class="state compact">
             <p>Не удалось загрузить список.</p>
-            <AppButton variant="secondary" @click="refetchList()">Повторить</AppButton>
+            <AppButton size="sm" variant="secondary" @click="refetchList()">Повторить</AppButton>
           </div>
           <p v-else-if="list.length === 0" class="empty">Здесь пока пусто.</p>
           <div v-else class="events">
@@ -238,6 +204,8 @@ function refetchList() {
               :meta="metaLine(event, categoryNames.get(event.category) ?? event.category)"
               :place="`${event.location} · ${participantsLine(event)}${event.isOrganizer ? ' · вы организатор' : ''}`"
               :pink="i % 2 === 0"
+              :organizer="event.organizer"
+              :icon="event.icon"
             />
           </div>
         </template>
@@ -298,28 +266,12 @@ function refetchList() {
   font-size: 23px;
   font-weight: 900;
 }
-.interests {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px;
-}
 .edit {
   width: 100%;
   display: flex;
   flex-direction: column;
   gap: 12px;
   text-align: left;
-}
-fieldset {
-  border: 0;
-  margin: 0;
-  padding: 0;
-}
-legend {
-  font-size: 12px;
-  font-weight: 800;
-  margin-bottom: 8px;
 }
 .error {
   color: #c62828;

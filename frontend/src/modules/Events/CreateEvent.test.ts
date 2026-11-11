@@ -1,12 +1,16 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, expect, it, vi } from 'vitest'
 import { EventSchedule, emptySchedule, toScheduleTimestamp } from '@/modules/EventSchedule'
 import CreateEvent from './CreateEvent.vue'
 import { createPinia } from 'pinia'
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import { useAuthStore } from '@/modules/Auth'
 
-afterEach(() => vi.useRealTimers())
+afterEach(() => {
+  vi.useRealTimers()
+  vi.unstubAllGlobals()
+})
 
 it('binds all three schedule values independently in the creation form', async () => {
   vi.useFakeTimers()
@@ -47,5 +51,63 @@ it('binds all three schedule values independently in the creation form', async (
     expect(schedule.emitted('validation')!.at(-1)).toEqual([{}])
   } finally {
     wrapper.unmount()
+  }
+})
+
+it('при нажатии на пустую форму показывает обязательные поля и не отправляет POST', async () => {
+  vi.useFakeTimers()
+  const fetch = vi
+    .fn()
+    .mockImplementation((path: string) =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify(
+            path.includes('/categories') ? [] : { items: [], total: 0, limit: 100, offset: 0 },
+          ),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    )
+  vi.stubGlobal('fetch', fetch)
+  const pinia = createPinia()
+  const auth = useAuthStore(pinia)
+  auth.status = 'authenticated'
+  auth.user = {
+    id: 'anna',
+    tgId: 1,
+    tgLogin: 'anna',
+    name: 'Анна',
+    photoUrl: null,
+    city: null,
+    categories: [],
+    createdEventsCount: 0,
+    visitedEventsCount: 0,
+  }
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const wrapper = mount(CreateEvent, {
+    global: {
+      plugins: [
+        pinia,
+        [VueQueryPlugin, { queryClient }],
+        createRouter({
+          history: createMemoryHistory(),
+          routes: [{ path: '/', component: { template: '<div />' } }],
+        }),
+      ],
+      stubs: { PlacePicker: true, RouterLink: true },
+    },
+  })
+  try {
+    await flushPromises()
+    const submit = wrapper.get('button[type="submit"]')
+    expect((submit.element as HTMLButtonElement).disabled).toBe(false)
+    await submit.trigger('click')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+    expect(wrapper.text()).toContain('Пожалуйста, заполните обязательные поля')
+    expect(fetch.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false)
+  } finally {
+    wrapper.unmount()
+    queryClient.clear()
   }
 })

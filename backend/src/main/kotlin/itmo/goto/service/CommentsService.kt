@@ -1,20 +1,57 @@
 package itmo.goto.service
 
+import itmo.goto.auth.Identity
 import itmo.goto.generated.api.CommentsApiService
-import itmo.goto.generated.model.Comment
+import itmo.goto.generated.model.ApiError
 import itmo.goto.generated.model.CommentPage
 import itmo.goto.generated.model.CreateCommentRequest
-import org.springframework.http.HttpStatus
+import itmo.goto.model.Comment
+import itmo.goto.repository.CommentRepository
+import itmo.goto.repository.EventRepository
+import itmo.goto.repository.ParticipationRepository
+import itmo.goto.repository.UserRepository
+import itmo.goto.web.ApiFailure
 import org.springframework.stereotype.Service
-import org.springframework.web.server.ResponseStatusException
+import org.springframework.transaction.annotation.Transactional
+import java.time.Clock
 import java.util.UUID
+import itmo.goto.generated.model.Comment as Note
 
-/** Contract placeholder for event comments, which are second-priority work. */
+/** * Lets participants of an event, the organizer included, talk under it and shows that talk to every signed-in user.
+ */
 @Service
-class CommentsService : CommentsApiService {
-    override fun getEventComments(eventId: UUID, limit: Int, offset: Int): CommentPage =
-        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Comment listing is not implemented yet")
+class CommentsService(
+    private val comments: CommentRepository,
+    private val events: EventRepository,
+    private val participations: ParticipationRepository,
+    private val users: UserRepository,
+    private val identity: Identity,
+    private val clock: Clock,
+) : CommentsApiService {
+    @Transactional(readOnly = true)
+    override fun getEventComments(eventId: UUID, limit: Int, offset: Int): CommentPage {
+        if (!events.existsById(eventId)) {
+            throw ApiFailure(ApiError.Code.EVENT_NOT_FOUND, "Событие не найдено")
+        }
+        return CommentPage(
+            comments.page(eventId, limit, offset).map { it.note() },
+            comments.countByEventId(eventId),
+            limit,
+            offset,
+        )
+    }
 
-    override fun createEventComment(eventId: UUID, createCommentRequest: CreateCommentRequest): Comment =
-        throw ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Commenting is not implemented yet")
+    @Transactional
+    override fun createEventComment(eventId: UUID, createCommentRequest: CreateCommentRequest): Note {
+        val event = events.findById(eventId).orElseThrow {
+            ApiFailure(ApiError.Code.EVENT_NOT_FOUND, "Событие не найдено")
+        }
+        if (!participations.existsByEventIdAndUserId(eventId, identity.user())) {
+            throw ApiFailure(ApiError.Code.FORBIDDEN, "Комментировать могут только участники события")
+        }
+        val author = users.findById(identity.user()).orElseThrow {
+            ApiFailure(ApiError.Code.UNAUTHORIZED, "Учётная запись не найдена, войдите заново")
+        }
+        return comments.save(Comment(event, author, createCommentRequest.text, clock.instant())).note()
+    }
 }

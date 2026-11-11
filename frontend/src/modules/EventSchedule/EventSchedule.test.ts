@@ -55,12 +55,21 @@ describe('EventSchedule', () => {
     const dates = wrapper.findAllComponents(CalendarPicker)
     expect(dates.map((picker) => picker.props('min'))).toEqual([
       '2026-02-01',
-      '2026-01-31',
+      '2026-02-01',
       '2026-01-31',
     ])
     expect(dates[0]!.props('max')).toBe('2026-02-28')
     expect(dates[1]!.props('max')).toBeUndefined()
     expect(wrapper.findAllComponents(TimePicker)).toHaveLength(3)
+  })
+
+  it('grays out calendar days that fail validation once the start date is chosen', async () => {
+    const wrapper = render()
+    const [start, end, registration] = wrapper.findAllComponents(CalendarPicker)
+    start.vm.$emit('update:modelValue', '2026-02-05')
+    await nextTick()
+    expect(end.props('min')).toBe('2026-02-05')
+    expect(registration.props('max')).toBe('2026-02-05')
   })
 
   it('preserves partial input and emits RFC3339 only once both parts are present', async () => {

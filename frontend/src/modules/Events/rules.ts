@@ -31,10 +31,9 @@ export function stateLabel(state: EventState): string {
 
 export function availableActions(event: EventActionsInput, now: Date): EventActions {
   const time = now.getTime()
-  const registrationOpen =
-    event.state === 'recruiting' && time < Date.parse(event.registrationClosesAt)
+  const registrationOpen = isRegistrationOpen(event, now)
   const beforeStart = time < Date.parse(event.startsAt)
-  const cancellable = event.state === 'recruiting' || event.state === 'registration_closed'
+  const cancellable = isActiveEvent(event)
 
   return {
     canJoin:
@@ -43,6 +42,17 @@ export function availableActions(event: EventActionsInput, now: Date): EventActi
     canCancel: event.isOrganizer && cancellable && beforeStart,
     canEdit: event.isOrganizer && registrationOpen,
   }
+}
+
+export function isRegistrationOpen(
+  event: Pick<EventActionsInput, 'state' | 'registrationClosesAt'>,
+  now: Date,
+): boolean {
+  return event.state === 'recruiting' && now.getTime() < Date.parse(event.registrationClosesAt)
+}
+
+export function isActiveEvent(event: Pick<EventActionsInput, 'state'>): boolean {
+  return event.state === 'recruiting' || event.state === 'registration_closed'
 }
 
 export function slotsLabel(count: number): string {

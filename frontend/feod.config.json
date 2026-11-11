@@ -1,0 +1,13 @@
+{
+  "srcRoot": "src",
+  "aliasPrefix": "@",
+  "aliasRoot": "src",
+  "modulePages": false,
+  "singleFileModules": false,
+  "ignore": ["src/common/api/schema.ts"],
+  "common": { "maxDepth": 1 },
+  "modules": { "requirePublicEntry": true },
+  "inventory": { "uncovered": true },
+  "cycles": { "modules": true, "files": true },
+  "imports": { "unresolved": "forbid" }
+}

@@ -47,8 +47,9 @@ Deployment is planned in `tasks.md` section 2.
 The contract drives the server.
 On `generate-sources`, `openapi-generator` (`kotlin-spring`, `serviceInterface=true`, `useTags=true`) writes controllers and one `*ApiService` interface per tag into `itmo.goto.generated.api` and DTOs into `itmo.goto.generated.model`, under `target/generated-sources/openapi`.
 Never edit generated code; change `api/openapi.yaml` first, then implement the regenerated interface.
-Hand-written classes in `itmo.goto.service` (such as `EventsService`) implement those interfaces; comments still throw
-`501 NOT_IMPLEMENTED`.
+Hand-written classes in `itmo.goto.service` (such as `EventsService`) implement those interfaces.
+`CommentsService` lets only participants, the organizer included, comment an event in any state and shows comments
+to every signed-in user from old to new.
 `EventsService` hands each operation to the class responsible for it: `EventCreationService` creates events,
 `EventDelegateService` changes and cancels them, `EventParticipationService` joins, leaves, and lists participants, and
 `EventDiscoveryService` lists events and shows one.

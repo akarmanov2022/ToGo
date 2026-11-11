@@ -3,6 +3,7 @@ import { configureApiSession } from '@/common/api/client'
 import {
   PAGE_SIZE,
   buildFeedQuery,
+  fetchFeedMap,
   fetchMyEvents,
   fetchCategories,
   fetchEvent,
@@ -12,6 +13,7 @@ import {
   cancelEvent,
   createEvent,
   updateEvent,
+  validateFeedDates,
   type CreateEventBody,
 } from './api'
 
@@ -129,6 +131,74 @@ describe('buildFeedQuery', () => {
   it('фиксирует размер страницы в 12 карточек', () => {
     expect(PAGE_SIZE).toBe(12)
   })
+
+  it('передаёт диапазон дат включительно и признак свободных мест', () => {
+    const params = new URLSearchParams(
+      buildFeedQuery(
+        {
+          category: null,
+          query: '',
+          dateFrom: '2026-11-12',
+          dateTo: '2026-11-13',
+          hasFreePlaces: true,
+        },
+        0,
+        now,
+      ),
+    )
+    expect(new Date(params.get('startsFrom')!).toISOString()).toBe(
+      new Date(2026, 10, 12).toISOString(),
+    )
+    expect(new Date(params.get('startsTo')!).toISOString()).toBe(
+      new Date(2026, 10, 14).toISOString(),
+    )
+    expect(params.get('hasFreePlaces')).toBe('true')
+  })
+
+  it('не даёт диапазону начинаться раньше текущего момента', () => {
+    const params = new URLSearchParams(
+      buildFeedQuery({ category: null, query: '', dateFrom: '2026-11-10' }, 0, now),
+    )
+    expect(params.get('startsFrom')).toBe('2026-11-10T12:00:00.000Z')
+    expect(params.has('startsTo')).toBe(false)
+    expect(params.has('hasFreePlaces')).toBe(false)
+  })
+})
+
+describe('validateFeedDates', () => {
+  it('отклоняет несуществующие и перевёрнутые даты диапазона', () => {
+    expect(validateFeedDates({ dateFrom: '2026-02-30' })).toBe('Укажите корректные даты')
+    expect(validateFeedDates({ dateFrom: '2026-11-13', dateTo: '2026-11-12' })).toBe(
+      'Дата окончания диапазона не может быть раньше начала',
+    )
+    expect(validateFeedDates({ dateFrom: '2026-11-12', dateTo: '2026-11-12' })).toBe('')
+  })
+})
+
+it('карта ленты собирает все страницы выборки и прячет отменённые события', async () => {
+  const makePage = (items: unknown[], total: number) =>
+    new Response(JSON.stringify({ items, total, limit: 12, offset: 0 }))
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValueOnce(
+      makePage(
+        [
+          { id: 'open', state: 'recruiting', startsAt: '2026-11-12T10:00:00Z' },
+          { id: 'gone', state: 'cancelled_by_organizer', startsAt: '2026-11-12T11:00:00Z' },
+        ],
+        3,
+      ),
+    )
+    .mockResolvedValueOnce(
+      makePage(
+        [{ id: 'closed', state: 'registration_closed', startsAt: '2026-11-13T10:00:00Z' }],
+        3,
+      ),
+    )
+  vi.stubGlobal('fetch', fetchMock)
+  const events = await fetchFeedMap({ category: null, query: '' }, now)
+  expect(events.map((event) => event.id)).toEqual(['open', 'closed'])
+  expect(fetchMock).toHaveBeenCalledTimes(2)
 })
 
 it('собирает все страницы архива до сортировки, не отправляя отсутствующий в контракте order', async () => {

@@ -78,6 +78,15 @@ class Rows(private val jdbc: JdbcTemplate) {
         user,
     )!!
 
+    fun comment(event: UUID, author: UUID, at: Instant): UUID = jdbc.queryForObject(
+        "INSERT INTO comments (event_id, author_id, text, created_at) VALUES (?, ?, ?, ?) RETURNING id",
+        UUID::class.java,
+        event,
+        author,
+        "Комментарий ${Random.nextInt()}",
+        at.atOffset(ZoneOffset.UTC),
+    )!!
+
     fun interest(user: UUID, category: String): Int =
         jdbc.update("INSERT INTO user_categories (user_id, category) VALUES (?, ?)", user, category)
 

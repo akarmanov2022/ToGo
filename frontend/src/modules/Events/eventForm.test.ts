@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  addCalendarMonths,
-  combineDateTime,
-  hasRequiredGaps,
-  validateEventForm,
-  type EventFormValues,
-} from './eventForm'
+import { validateEventForm, type EventFormValues } from './eventForm'
 
 const now = new Date('2026-11-10T12:00:00Z')
 
@@ -32,8 +26,8 @@ describe('validateEventForm', () => {
     expect(validateEventForm(form, now)).toEqual({})
   })
 
-  it('не разрешает максимум меньше двух по временному правилу интерфейса', () => {
-    expect(validateEventForm({ ...valid, minUsers: 1, maxUsers: 1 }, now).maxUsers).toBeDefined()
+  it('принимает событие для одного согласно контракту', () => {
+    expect(validateEventForm({ ...valid, minUsers: 1, maxUsers: 1 }, now)).toEqual({})
   })
 
   it('отклоняет название из пробелов и слишком длинное', () => {
@@ -81,8 +75,7 @@ describe('validateEventForm', () => {
   })
 
   it('отклоняет начало дальше одного календарного месяца', () => {
-    const tooFar = addCalendarMonths(now, 1)
-    tooFar.setMinutes(tooFar.getMinutes() + 1)
+    const tooFar = new Date('2026-12-10T12:01:00Z')
     expect(
       validateEventForm({ ...valid, startsAt: tooFar.toISOString() }, now).startsAt,
     ).toBeDefined()
@@ -109,20 +102,7 @@ describe('validateEventForm', () => {
     expect(validateEventForm({ ...valid, icon: 'a🎲' }, now).icon).toBeDefined()
   })
 
-  it('помечает незаполненные обязательные поля для красного сообщения', () => {
-    expect(hasRequiredGaps(validateEventForm({ ...valid, title: '' }, now))).toBe(true)
-  })
-})
-
-describe('combineDateTime', () => {
-  it('собирает дату и время в ISO-строку с часовым поясом', () => {
-    const result = combineDateTime('2026-11-11', '18:00')
-    expect(Date.parse(result)).toBe(new Date('2026-11-11T18:00').getTime())
-    expect(result).toMatch(/Z$/)
-  })
-
-  it('возвращает пустую строку, если дата или время не заданы', () => {
-    expect(combineDateTime('', '18:00')).toBe('')
-    expect(combineDateTime('2026-11-11', '')).toBe('')
+  it.each(['', '2.0', '2e1', '-2', '2x'])('отклоняет нецифровые лимиты: %s', (value) => {
+    expect(validateEventForm({ ...valid, maxUsers: value }, now).maxUsers).toBeDefined()
   })
 })

@@ -1,9 +1,11 @@
 interface TelegramWebApp {
   initData: string
-  platform: string
+  platform?: string
   ready: () => void
   expand: () => void
-  requestWriteAccess?: (callback?: (granted: boolean) => void) => void
+  requestWriteAccess?: (callback: (granted: boolean) => void) => void
+  isVersionAtLeast?: (version: string) => boolean
+  initDataUnsafe?: { user?: { allows_write_to_pm?: boolean } }
 }
 declare global {
   interface Window {
@@ -16,13 +18,26 @@ export function getTelegramInitData(): string {
   if (!app) return ''
   app.ready()
   app.expand()
-  if (
-    app.initData &&
-    app.requestWriteAccess &&
-    !sessionStorage.getItem('togo-write-access-requested')
-  ) {
-    sessionStorage.setItem('togo-write-access-requested', '1')
-    app.requestWriteAccess()
-  }
   return app.initData
+}
+
+/** Разрешение сообщений — не способ входа и не влияет на успех авторизации. */
+export function requestTelegramWriteAccess(): Promise<boolean | null> {
+  const app = window.Telegram?.WebApp
+  if (
+    !app?.initData ||
+    !app.requestWriteAccess ||
+    (app.isVersionAtLeast && !app.isVersionAtLeast('6.9'))
+  )
+    return Promise.resolve(null)
+  if (app.initDataUnsafe?.user?.allows_write_to_pm) return Promise.resolve(true)
+  if (sessionStorage.getItem('togo-write-access-requested')) return Promise.resolve(null)
+  sessionStorage.setItem('togo-write-access-requested', '1')
+  return new Promise((resolve) => {
+    try {
+      app.requestWriteAccess!((granted) => resolve(granted))
+    } catch {
+      resolve(null)
+    }
+  })
 }

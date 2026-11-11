@@ -35,6 +35,7 @@ it('сохраняет подтверждение отмены и запрет �
     if (path === '/api/v1/categories') return Promise.resolve([])
     if (path.includes('/participants?'))
       return Promise.resolve({ items: [event.organizer], total: 1 })
+    if (path.includes('/comments?')) return Promise.resolve({ items: [], total: 0 })
     return Promise.resolve(event)
   })
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -55,6 +56,31 @@ it('сохраняет подтверждение отмены и запрет �
     await flushPromises()
     expect(apiRequest).toHaveBeenCalledWith('/api/v1/events/own/cancel', { method: 'POST' })
     expect(wrapper.find('.confirm').exists()).toBe(false)
+  } finally {
+    wrapper.unmount()
+    queryClient.clear()
+  }
+})
+
+it('даёт участнику оставить комментарий в карточке события', async () => {
+  apiRequest.mockImplementation((path: string) => {
+    if (path === '/api/v1/categories') return Promise.resolve([])
+    if (path.includes('/participants?'))
+      return Promise.resolve({ items: [event.organizer], total: 1 })
+    if (path.includes('/comments?')) return Promise.resolve({ items: [], total: 0 })
+    return Promise.resolve(event)
+  })
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const wrapper = mount(EventDetail, {
+    props: { eventId: 'own' },
+    global: {
+      plugins: [[VueQueryPlugin, { queryClient }]],
+      stubs: { RouterLink: { template: '<a><slot /></a>' } },
+    },
+  })
+  try {
+    await flushPromises()
+    expect(wrapper.find('.comments form').exists()).toBe(true)
   } finally {
     wrapper.unmount()
     queryClient.clear()

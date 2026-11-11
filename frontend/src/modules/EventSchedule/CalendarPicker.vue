@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
 import { localDate } from './dates'
+import { usePopover } from '@/common/composables/usePopover'
 const props = withDefaults(
   defineProps<{
     modelValue: string
@@ -17,6 +18,8 @@ const open = ref(false)
 const id = useId()
 const root = ref<HTMLElement | null>(null)
 const trigger = ref<HTMLButtonElement | null>(null)
+const panel = ref<HTMLElement | null>(null)
+const { offset } = usePopover(open, root, panel)
 const display = computed(() =>
   props.modelValue ? props.modelValue.split('-').reverse().join('.') : 'Выбрать дату',
 )
@@ -52,7 +55,8 @@ function close() {
   trigger.value?.focus()
 }
 function leave(event: FocusEvent) {
-  if (!root.value?.contains(event.relatedTarget as Node | null)) open.value = false
+  if (event.relatedTarget === null) return
+  if (!root.value?.contains(event.relatedTarget as Node)) open.value = false
 }
 function toggle() {
   if (!open.value) month.value = new Date(`${props.modelValue || props.min}T12:00:00`)
@@ -86,7 +90,15 @@ function toggle() {
         <path d="M7 2v6M17 2v6M3 11h18" />
       </svg>
     </button>
-    <div v-if="open" :id="id" class="calendar-panel" role="group" :aria-label="label">
+    <div
+      v-if="open"
+      :id="id"
+      ref="panel"
+      class="calendar-panel"
+      role="group"
+      :aria-label="label"
+      :style="offset ? { left: `${offset}px` } : undefined"
+    >
       <div class="calendar-header">
         <button
           type="button"
@@ -133,6 +145,7 @@ function toggle() {
 </template>
 <style scoped>
 .calendar {
+  position: relative;
   font-size: 12px;
 }
 .calendar-toggle {
@@ -174,12 +187,17 @@ function toggle() {
   outline-offset: 3px;
 }
 .calendar-panel {
-  margin-top: 8px;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 40;
+  width: 308px;
+  max-width: calc(100vw - 24px);
   padding: 10px;
   background: #fff;
   border: 1px solid #edcfe2;
   border-radius: 12px;
-  max-width: 320px;
+  box-shadow: 0 18px 44px rgba(41, 38, 87, 0.16);
 }
 .calendar-header {
   display: flex;
