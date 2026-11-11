@@ -40,10 +40,6 @@ SSHPASS="$ROOT_PASSWORD" "${ssh_command[@]}" "$destination" "mkdir -p '$release_
 # .env, сертификаты и исходники приложения не входят в архив релиза.
 tar -C "$root" -czf - infra/docker-compose.prod.yml infra/nginx infra/monitoring scripts/deploy.sh |
     SSHPASS="$ROOT_PASSWORD" "${ssh_command[@]}" "$destination" "tar -xzf - -C '$release_dir'"
-
-{
-    printf '%s\n' "$DOCKERHUB_TOKEN"
-    printf '%s\n' "${GRAFANA_USER:-}"
-    printf '%s\n' "${GRAFANA_PASSWORD:-}"
-} | SSHPASS="$ROOT_PASSWORD" "${ssh_command[@]}" "$destination" \
+printf '%s\n' "$DOCKERHUB_TOKEN" |
+    SSHPASS="$ROOT_PASSWORD" "${ssh_command[@]}" "$destination" \
     "bash '$release_dir/scripts/deploy.sh' '$TOGO_RELEASE_SHA' '$DEPLOY_PATH' '$DOCKERHUB_USERNAME'"
