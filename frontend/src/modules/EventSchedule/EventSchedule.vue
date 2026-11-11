@@ -63,8 +63,21 @@ onMounted(() => {
 onUnmounted(() => clearInterval(timer))
 const minimum = computed(() => localDate(currentTime.value))
 const maximum = computed(() => localDate(addCalendarMonth(currentTime.value)))
+const startDay = computed(() => draft.startsAt.date)
 const errors = computed(() => validateSchedule(props.modelValue, currentTime.value))
 watch(errors, (value) => emit('validation', value), { immediate: true })
+
+/**
+ * Границы календаря повторяют валидацию: даты, которые её не проходят,
+ * в календаре серые и некликабельные, а не только текст ошибки.
+ */
+function calendarBounds(field: ScheduleField): { min: string; max?: string } {
+  if (field === 'startsAt')
+    return { min: localDate(earliestEventStart(currentTime.value)), max: maximum.value }
+  if (field === 'endsAt')
+    return { min: startDay.value || localDate(earliestEventStart(currentTime.value)) }
+  return { min: minimum.value, max: startDay.value || undefined }
+}
 
 function update(field: ScheduleField) {
   touched[field] = true
@@ -95,8 +108,7 @@ function applyDate(field: ScheduleField, value: string) {
             :label="`${field.label}: дата`"
             :invalid="Boolean((showErrors || touched[field.key]) && errors[field.key])"
             :described-by="`${id}-${field.key}-error`"
-            :min="field.key === 'startsAt' ? localDate(earliestEventStart(currentTime)) : minimum"
-            :max="field.key === 'startsAt' ? maximum : undefined"
+            v-bind="calendarBounds(field.key)"
             @update:model-value="applyDate(field.key, $event)"
           />
         </div>

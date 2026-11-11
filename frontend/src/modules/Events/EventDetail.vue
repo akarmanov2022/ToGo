@@ -12,19 +12,18 @@ import {
   fetchParticipants,
   joinEvent,
   leaveEvent,
-  updateEvent,
 } from './api'
-import EventComments from './EventComments.vue'
 import { formatStart, participantsLine } from './format'
 import { availableActions, stateLabel } from './rules'
+import { eventCategories } from './categories'
+import EventEditor from './EventEditor.vue'
+import EventComments from './EventComments.vue'
+import { cardAction } from './actions'
 
 const props = defineProps<{ eventId: string }>()
 const queryClient = useQueryClient()
 const actionError = ref('')
 const editOpen = ref(false)
-const editTitle = ref('')
-const editDescription = ref('')
-const editMessage = ref('')
 const confirmingCancel = ref(false)
 const now = ref(new Date())
 const clock = setInterval(() => {
@@ -111,36 +110,19 @@ const cancelMutation = useMutation({
   },
 })
 
-const editMutation = useMutation({
-  mutationFn: () =>
-    updateEvent(props.eventId, {
-      title: editTitle.value.trim(),
-      description: editDescription.value.trim(),
-    }),
-  onSuccess: async () => {
-    editMessage.value = ''
-    editOpen.value = false
-    await refreshEvent()
-  },
-  onError: (error) => {
-    editMessage.value = explain(error, 'Не удалось сохранить изменения')
-  },
-})
-
 function openEdit() {
   if (!event.value) return
-  editTitle.value = event.value.title
-  editDescription.value = event.value.description
-  editMessage.value = ''
+  confirmingCancel.value = false
   editOpen.value = true
+}
+async function saved() {
+  editOpen.value = false
+  await refreshEvent()
 }
 
 const busy = computed(
   () =>
-    joinMutation.isPending.value ||
-    leaveMutation.isPending.value ||
-    cancelMutation.isPending.value ||
-    editMutation.isPending.value,
+    joinMutation.isPending.value || leaveMutation.isPending.value || cancelMutation.isPending.value,
 )
 </script>
 <template>
@@ -152,7 +134,7 @@ const busy = computed(
     </p>
     <div v-else-if="eventQuery.isError.value" class="state">
       <p>Не удалось загрузить событие.</p>
-      <AppButton variant="secondary" @click="eventQuery.refetch()">Повторить</AppButton>
+      <AppButton size="sm" variant="secondary" @click="eventQuery.refetch()">Повторить</AppButton>
     </div>
 
     <template v-else-if="event">
@@ -171,17 +153,24 @@ const busy = computed(
           <p><strong>Участники:</strong> {{ participantsLine(event) }}</p>
           <p>
             <strong>Организатор:</strong>
-            {{ event.organizer.tgLogin ? `@${event.organizer.tgLogin}` : 'без ника' }}
+            <RouterLink :to="`/users/${event.organizer.id}`">{{
+              event.organizer.tgLogin ? `@${event.organizer.tgLogin}` : 'Профиль организатора'
+            }}</RouterLink>
           </p>
         </AppCard>
 
         <div class="side">
-          <div class="actions">
+          <div v-if="!editOpen" class="actions">
             <AppButton v-if="actions?.canJoin" :disabled="busy" @click="joinMutation.mutate()">
               Присоединиться
             </AppButton>
             <AppButton
-              v-else-if="actions?.canLeave"
+              v-if="!actions?.canJoin && !actions?.canLeave && !actions?.canCancel"
+              disabled
+              >{{ cardAction(event, now).label }}</AppButton
+            >
+            <AppButton
+              v-if="actions?.canLeave"
               variant="secondary"
               :disabled="busy"
               @click="leaveMutation.mutate()"
@@ -212,7 +201,7 @@ const busy = computed(
             aria-label="Подтверждение отмены события"
             @keydown.esc="confirmingCancel = false"
           >
-            <p>Отменить событие? Участники получат уведомление.</p>
+            <p>Отменить событие? Это действие нельзя отменить.</p>
             <div class="actions">
               <AppButton :disabled="busy" @click="cancelMutation.mutate()">Да, отменить</AppButton>
               <AppButton variant="secondary" :disabled="busy" @click="confirmingCancel = false"
@@ -230,25 +219,14 @@ const busy = computed(
             Мест больше нет — вступление недоступно.
           </p>
 
-          <form v-if="editOpen" class="edit" @submit.prevent="editMutation.mutate()">
-            <label>
-              Название
-              <input v-model="editTitle" maxlength="100" required />
-            </label>
-            <label>
-              Описание
-              <textarea v-model="editDescription" maxlength="500" rows="4" required />
-            </label>
-            <div class="actions">
-              <AppButton type="submit" :disabled="editMutation.isPending.value"
-                >Сохранить</AppButton
-              >
-              <AppButton type="button" variant="secondary" @click="editOpen = false"
-                >Отмена</AppButton
-              >
-            </div>
-            <p v-if="editMessage" class="error">{{ editMessage }}</p>
-          </form>
+          <EventEditor
+            v-if="editOpen && actions?.canEdit"
+            :key="event.id"
+            :event="event"
+            :categories="categoriesQuery.data.value ?? eventCategories"
+            @saved="saved"
+            @cancel="editOpen = false"
+          />
         </div>
       </div>
 
@@ -259,7 +237,9 @@ const busy = computed(
         </p>
         <div v-else-if="participantsQuery.isError.value" class="state compact">
           <p>Не удалось загрузить участников.</p>
-          <AppButton variant="secondary" @click="participantsQuery.refetch()">Повторить</AppButton>
+          <AppButton size="sm" variant="secondary" @click="participantsQuery.refetch()"
+            >Повторить</AppButton
+          >
         </div>
         <p
           v-else-if="(participantsQuery.data.value?.items.length ?? 0) === 0"
@@ -276,8 +256,11 @@ const busy = computed(
           </li>
         </ul>
       </section>
-
-      <EventComments :event-id="eventId" :can-comment="event.isParticipant || event.isOrganizer" />
+      <EventComments
+        :key="event.id"
+        :event-id="event.id"
+        :is-participant="event.isParticipant || event.isOrganizer"
+      />
     </template>
   </section>
 </template>

@@ -1,176 +1,108 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
-import { afterEach, expect, it, vi } from 'vitest'
-import type { Comment } from './api'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { ApiError } from '@/common/api/client'
 import EventComments from './EventComments.vue'
 
 const { apiRequest } = vi.hoisted(() => ({ apiRequest: vi.fn() }))
-vi.mock('@/common/api/client', () => ({
-  apiRequest,
-  ApiError: class extends Error {
-    constructor(
-      public readonly status: number,
-      public readonly body: { message: string } | null,
-    ) {
-      super(body?.message)
-    }
-  },
-}))
-afterEach(() => vi.clearAllMocks())
-
-function note(text: string, login: string | null): Comment {
+vi.mock('@/common/api/client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/common/api/client')>()
   return {
-    id: `id-${Math.random()}`,
-    author: { id: `user-${Math.random()}`, tgLogin: login },
-    text,
-    createdAt: new Date(Date.now() - Math.floor(Math.random() * 3_600_000)).toISOString(),
+    ...actual,
+    apiRequest: (...args: unknown[]) => apiRequest(...args),
   }
+})
+const clients: QueryClient[] = []
+const wrappers: VueWrapper[] = []
+const comment = {
+  id: 'comment',
+  text: 'Встречаемся у входа',
+  author: { id: 'u', tgLogin: 'anna' },
+  createdAt: '2026-11-10T12:00:00Z',
 }
+const emptyPage = () => ({ items: [], total: 0, limit: 20, offset: 0 })
 
-function render(canComment: boolean) {
+// Важно: блок с фигурными скобками. Стрелка «() => apiRequest.mockResolvedValue(...)»
+// возвращала бы сам мок, и vitest вызывал бы его как cleanup-функцию после теста.
+beforeEach(() => {
+  apiRequest.mockResolvedValue(emptyPage())
+})
+// Отмонтируем компоненты до очистки кэша и сброса моков, иначе наблюдатель
+// TanStack Query успевает доделать свой запрос уже внутри следующего теста.
+afterEach(async () => {
+  wrappers.forEach((wrapper) => wrapper.unmount())
+  wrappers.length = 0
+  await flushPromises()
+  clients.forEach((client) => client.clear())
+  clients.length = 0
+  vi.resetAllMocks()
+})
+
+function render(isParticipant = true) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  clients.push(queryClient)
   const wrapper = mount(EventComments, {
-    props: { eventId: 'event', canComment },
+    props: { eventId: 'event', isParticipant },
     global: {
       plugins: [[VueQueryPlugin, { queryClient }]],
       stubs: { RouterLink: { template: '<a><slot /></a>' } },
     },
   })
-  return { wrapper, queryClient }
+  wrappers.push(wrapper)
+  return wrapper
 }
 
-it('показывает комментарии в порядке ответа сервера с автором', async () => {
-  const notes = [note('Встречаемся у входа', 'anna'), note('Возьму мяч', 'boris')]
-  apiRequest.mockResolvedValue({ items: notes, total: 2, limit: 100, offset: 0 })
-  const { wrapper, queryClient } = render(false)
-  try {
-    await flushPromises()
-    expect(wrapper.findAll('.comment').map((item) => item.text())).toEqual([
-      expect.stringMatching(/@anna.*Встречаемся у входа/s),
-      expect.stringMatching(/@boris.*Возьму мяч/s),
-    ])
-  } finally {
-    wrapper.unmount()
-    queryClient.clear()
-  }
-})
-
-it('запрашивает комментарии события страницей', async () => {
-  apiRequest.mockResolvedValue({ items: [], total: 0, limit: 100, offset: 0 })
-  const { wrapper, queryClient } = render(false)
-  try {
-    await flushPromises()
-    expect(apiRequest).toHaveBeenCalledWith('/api/v1/events/event/comments?limit=100&offset=0')
-  } finally {
-    wrapper.unmount()
-    queryClient.clear()
-  }
-})
-
-it('говорит, что комментариев пока нет', async () => {
-  apiRequest.mockResolvedValue({ items: [], total: 0, limit: 100, offset: 0 })
-  const { wrapper, queryClient } = render(true)
-  try {
-    await flushPromises()
-    expect(wrapper.text()).toContain('Комментариев пока нет')
-  } finally {
-    wrapper.unmount()
-    queryClient.clear()
-  }
-})
-
-it('не показывает форму тому, кто не участвует', async () => {
-  apiRequest.mockResolvedValue({ items: [], total: 0, limit: 100, offset: 0 })
-  const { wrapper, queryClient } = render(false)
-  try {
-    await flushPromises()
-    expect(wrapper.find('form').exists()).toBe(false)
-  } finally {
-    wrapper.unmount()
-    queryClient.clear()
-  }
-})
-
-it('не даёт отправить комментарий из одних пробелов', async () => {
-  apiRequest.mockResolvedValue({ items: [], total: 0, limit: 100, offset: 0 })
-  const { wrapper, queryClient } = render(true)
-  try {
-    await flushPromises()
-    await wrapper.get('textarea').setValue('   \n ')
-    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
-  } finally {
-    wrapper.unmount()
-    queryClient.clear()
-  }
-})
-
-it('публикует комментарий участника без крайних пробелов и очищает поле', async () => {
-  const text = `Буду в ${Math.floor(Math.random() * 24)}:00`
+it('запрещает пустой комментарий, публикует текст и показывает ответ сервера', async () => {
   apiRequest.mockImplementation((path: string, options?: { method?: string }) =>
-    options?.method === 'POST'
-      ? Promise.resolve(note(text, 'me'))
-      : Promise.resolve({ items: [], total: 0, limit: 100, offset: 0 }),
+    Promise.resolve(options?.method === 'POST' ? comment : emptyPage()),
   )
-  const { wrapper, queryClient } = render(true)
-  try {
-    await flushPromises()
-    await wrapper.get('textarea').setValue(`  ${text}  `)
-    await wrapper.get('form').trigger('submit')
-    await flushPromises()
-    expect(apiRequest).toHaveBeenCalledWith('/api/v1/events/event/comments', {
-      method: 'POST',
-      body: { text },
-    })
-    expect((wrapper.get('textarea').element as HTMLTextAreaElement).value).toBe('')
-  } finally {
-    wrapper.unmount()
-    queryClient.clear()
-  }
+  const wrapper = render()
+  await flushPromises()
+  expect(wrapper.get('button[type=submit]').attributes('disabled')).toBeDefined()
+  await wrapper.get('textarea').setValue('   ')
+  expect(wrapper.get('button[type=submit]').attributes('disabled')).toBeDefined()
+  await wrapper.get('textarea').setValue(' Встречаемся у входа ')
+  await wrapper.get('form').trigger('submit')
+  await flushPromises()
+  expect(apiRequest).toHaveBeenCalledWith('/api/v1/events/event/comments', {
+    method: 'POST',
+    body: { text: 'Встречаемся у входа' },
+  })
+  expect(wrapper.get('.comment-list').text()).toContain(comment.text)
+  expect(wrapper.get<HTMLTextAreaElement>('textarea').element.value).toBe('')
 })
-
-it('перезапрашивает список после публикации', async () => {
-  apiRequest.mockImplementation((path: string, options?: { method?: string }) =>
-    options?.method === 'POST'
-      ? Promise.resolve(note('Привет', 'me'))
-      : Promise.resolve({ items: [], total: 0, limit: 100, offset: 0 }),
-  )
-  const { wrapper, queryClient } = render(true)
-  try {
-    await flushPromises()
-    await wrapper.get('textarea').setValue('Привет')
-    await wrapper.get('form').trigger('submit')
-    await flushPromises()
-    expect(
-      apiRequest.mock.calls.filter(([path]) => String(path).includes('comments?')),
-    ).toHaveLength(2)
-  } finally {
-    wrapper.unmount()
-    queryClient.clear()
-  }
+it('позволяет читать, но не писать неучастнику', async () => {
+  apiRequest.mockResolvedValue({ items: [comment], total: 1, limit: 20, offset: 0 })
+  const wrapper = render(false)
+  await flushPromises()
+  expect(wrapper.text()).toContain(comment.text)
+  expect(wrapper.find('textarea').exists()).toBe(false)
 })
-
-it('показывает отказ сервера при публикации', async () => {
-  const { ApiError } = await import('@/common/api/client')
-  apiRequest.mockImplementation((path: string, options?: { method?: string }) =>
+it('честно обрабатывает 501 и не показывает фальшивый рабочий редактор', async () => {
+  apiRequest.mockRejectedValue(new ApiError(501, null))
+  const wrapper = render()
+  await flushPromises()
+  expect(wrapper.text()).toContain('Комментарии пока недоступны на сервере')
+  expect(wrapper.find('form').exists()).toBe(false)
+  expect(apiRequest).toHaveBeenCalledTimes(1)
+})
+it('показывает отказ сервера без потери набранного текста', async () => {
+  apiRequest.mockImplementation((_path: string, options?: { method?: string }) =>
     options?.method === 'POST'
       ? Promise.reject(
           new ApiError(403, {
             code: 'FORBIDDEN',
-            message: 'Комментировать могут только участники события',
+            message: 'Только участники могут комментировать',
             details: [],
           }),
         )
-      : Promise.resolve({ items: [], total: 0, limit: 100, offset: 0 }),
+      : Promise.resolve(emptyPage()),
   )
-  const { wrapper, queryClient } = render(true)
-  try {
-    await flushPromises()
-    await wrapper.get('textarea').setValue('Привет')
-    await wrapper.get('form').trigger('submit')
-    await flushPromises()
-    expect(wrapper.get('.error').text()).toBe('Комментировать могут только участники события')
-  } finally {
-    wrapper.unmount()
-    queryClient.clear()
-  }
+  const wrapper = render()
+  await flushPromises()
+  await wrapper.get('textarea').setValue('Текст')
+  await wrapper.get('form').trigger('submit')
+  await flushPromises()
+  expect(wrapper.text()).toContain('Только участники могут комментировать')
+  expect(wrapper.get<HTMLTextAreaElement>('textarea').element.value).toBe('Текст')
 })

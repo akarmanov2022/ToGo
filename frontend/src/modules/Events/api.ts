@@ -1,5 +1,7 @@
 import { apiRequest } from '@/common/api/client'
 import type { components } from '@/common/api/schema'
+import { localDate, toScheduleTimestamp } from '@/modules/EventSchedule'
+import { isVisibleInFeed } from './actions'
 
 export type EventCategory = components['schemas']['EventCategory']
 export type Category = components['schemas']['Category']
@@ -7,28 +9,79 @@ export type EventDto = components['schemas']['Event']
 export type EventPage = components['schemas']['EventPage']
 export type Participant = components['schemas']['UserSummary']
 export type ParticipantPage = components['schemas']['ParticipantPage']
-export type Comment = components['schemas']['Comment']
-export type CommentPage = components['schemas']['CommentPage']
 export type CreateEventBody = components['schemas']['CreateEventRequest']
 export type UpdateEventBody = components['schemas']['UpdateEventRequest']
+export type EventComment = components['schemas']['Comment']
+export type CommentPage = components['schemas']['CommentPage']
+
+export function fetchComments(eventId: string, offset: number): Promise<CommentPage> {
+  return apiRequest<CommentPage>(`/api/v1/events/${eventId}/comments?limit=20&offset=${offset}`)
+}
+export function postComment(eventId: string, text: string): Promise<EventComment> {
+  return apiRequest<EventComment>(`/api/v1/events/${eventId}/comments`, {
+    method: 'POST',
+    body: { text },
+  })
+}
 
 export interface FeedFilters {
   category: EventCategory | null
   query: string
+  dateFrom?: string
+  dateTo?: string
+  hasFreePlaces?: boolean
 }
 
 export const PAGE_SIZE = 12
 
 export function buildFeedQuery(filters: FeedFilters, offset: number, now: Date): string {
+  const from = filters.dateFrom
+    ? toScheduleTimestamp({ date: filters.dateFrom, time: '00:00' })
+    : ''
+  let to = ''
+  if (filters.dateTo) {
+    const nextDay = new Date(`${filters.dateTo}T12:00:00`)
+    nextDay.setDate(nextDay.getDate() + 1)
+    to = toScheduleTimestamp({ date: localDate(nextDay), time: '00:00' })
+  }
   const params = new URLSearchParams({
-    startsFrom: now.toISOString(),
+    startsFrom: new Date(
+      Math.max(now.getTime(), from ? Date.parse(from) : now.getTime()),
+    ).toISOString(),
     limit: String(PAGE_SIZE),
     offset: String(offset),
   })
   if (filters.category) params.set('category', filters.category)
   const query = filters.query.trim()
   if (query) params.set('query', query)
+  if (to) params.set('startsTo', to)
+  if (filters.hasFreePlaces) params.set('hasFreePlaces', 'true')
   return params.toString()
+}
+
+export function validateFeedDates(filters: Pick<FeedFilters, 'dateFrom' | 'dateTo'>): string {
+  for (const date of [filters.dateFrom, filters.dateTo]) {
+    if (date && !toScheduleTimestamp({ date, time: '00:00' })) return 'Укажите корректные даты'
+  }
+  return filters.dateFrom && filters.dateTo && filters.dateFrom > filters.dateTo
+    ? 'Дата окончания диапазона не может быть раньше начала'
+    : ''
+}
+
+export async function fetchFeedMap(
+  filters: FeedFilters,
+  now: Date,
+  signal?: AbortSignal,
+): Promise<EventDto[]> {
+  const events: EventDto[] = []
+  let offset = 0
+  while (true) {
+    const page = await fetchFeedPage(filters, offset, now, signal)
+    events.push(...page.items)
+    offset += page.items.length
+    if (offset >= page.total || !page.items.length) break
+  }
+  return [...new Map(events.filter(isVisibleInFeed).map((event) => [event.id, event])).values()]
 }
 
 export function fetchFeedPage(
@@ -70,17 +123,6 @@ export function leaveEvent(eventId: string): Promise<void> {
 
 export function fetchParticipants(eventId: string): Promise<ParticipantPage> {
   return apiRequest<ParticipantPage>(`/api/v1/events/${eventId}/participants?limit=100&offset=0`)
-}
-
-export function fetchComments(eventId: string): Promise<CommentPage> {
-  return apiRequest<CommentPage>(`/api/v1/events/${eventId}/comments?limit=100&offset=0`)
-}
-
-export function publishComment(eventId: string, text: string): Promise<Comment> {
-  return apiRequest<Comment>(`/api/v1/events/${eventId}/comments`, {
-    method: 'POST',
-    body: { text },
-  })
 }
 
 export async function fetchMyEvents(params: {

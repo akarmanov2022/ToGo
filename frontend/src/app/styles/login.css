@@ -69,6 +69,61 @@
 .login-panel-content {
   width: min(100%, 360px);
 }
+.login-badge {
+  display: inline-block;
+  padding: 6px 10px;
+  margin-bottom: 16px;
+  border-radius: 30px;
+  background: var(--color-blue-soft);
+  color: var(--color-blue);
+  font-size: 11px;
+  font-weight: 800;
+}
+.login-bot-link {
+  display: block;
+  margin-top: 18px;
+  color: var(--color-blue);
+  font-size: 13px;
+  font-weight: 800;
+}
+.login--compact {
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  gap: 24px;
+  padding: 32px 24px;
+  min-height: 100dvh;
+  background: radial-gradient(ellipse at top, #fbd5e677, transparent 70%), var(--color-bg);
+}
+.login--compact .login-hero,
+.login--compact .login-panel {
+  min-height: 0;
+  padding: 0;
+  background: none;
+  justify-content: center;
+  align-items: center;
+  flex: none;
+}
+.login--compact .login-hero-content,
+.login--compact .login-panel-content {
+  width: min(100%, 400px);
+  text-align: center;
+}
+.login--compact .animated-logo {
+  justify-content: center;
+  font-size: 56px;
+}
+.login--compact .together,
+.login--compact .login-hero h1,
+.login--compact .login-hero p {
+  display: none;
+}
+.login--compact .login-panel h2 {
+  font-size: 24px;
+}
+.login--compact .login-panel p {
+  line-height: 1.6;
+  color: var(--color-text-muted);
+}
 .login-panel h2 {
   font-size: 30px;
 }
@@ -145,5 +200,8 @@
   }
   .login-panel-content {
     width: 100%;
+  }
+  .login--compact {
+    display: grid;
   }
 }

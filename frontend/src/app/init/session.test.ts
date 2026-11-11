@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { apiRequest, configureApiSession } from '@/common/api/client'
-import { useAuthStore } from '@/modules/Auth'
+import { currentUserKey, useAuthStore } from '@/modules/Auth'
 import { queryClient } from '../queryClient'
 import { bindApiSession } from './session'
 import type { components } from '@/common/api/schema'
@@ -37,6 +37,17 @@ afterEach(() => {
 })
 
 describe('API / Auth / Query integration', () => {
+  it('seeds the shared profile query from login instead of requesting me again for each screen', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(login('first-token'))
+      .mockResolvedValueOnce(json(user))
+    vi.stubGlobal('fetch', fetchMock)
+    await auth.initialize('fresh-init-data')
+    expect(queryClient.getQueryData(currentUserKey(user.id))).toEqual(user)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('clears the token, user and query cache on protected 401 without retry', async () => {
     const fetchMock = vi
       .fn()
