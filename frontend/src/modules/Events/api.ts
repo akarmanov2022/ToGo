@@ -7,6 +7,8 @@ export type EventDto = components['schemas']['Event']
 export type EventPage = components['schemas']['EventPage']
 export type Participant = components['schemas']['UserSummary']
 export type ParticipantPage = components['schemas']['ParticipantPage']
+export type Comment = components['schemas']['Comment']
+export type CommentPage = components['schemas']['CommentPage']
 export type CreateEventBody = components['schemas']['CreateEventRequest']
 export type UpdateEventBody = components['schemas']['UpdateEventRequest']
 
@@ -68,6 +70,17 @@ export function leaveEvent(eventId: string): Promise<void> {
 
 export function fetchParticipants(eventId: string): Promise<ParticipantPage> {
   return apiRequest<ParticipantPage>(`/api/v1/events/${eventId}/participants?limit=100&offset=0`)
+}
+
+export function fetchComments(eventId: string): Promise<CommentPage> {
+  return apiRequest<CommentPage>(`/api/v1/events/${eventId}/comments?limit=100&offset=0`)
+}
+
+export function publishComment(eventId: string, text: string): Promise<Comment> {
+  return apiRequest<Comment>(`/api/v1/events/${eventId}/comments`, {
+    method: 'POST',
+    body: { text },
+  })
 }
 
 export async function fetchMyEvents(params: {

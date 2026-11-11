@@ -14,6 +14,7 @@ import {
   leaveEvent,
   updateEvent,
 } from './api'
+import EventComments from './EventComments.vue'
 import { formatStart, participantsLine } from './format'
 import { availableActions, stateLabel } from './rules'
 
@@ -275,6 +276,8 @@ const busy = computed(
           </li>
         </ul>
       </section>
+
+      <EventComments :event-id="eventId" :can-comment="event.isParticipant || event.isOrganizer" />
     </template>
   </section>
 </template>
