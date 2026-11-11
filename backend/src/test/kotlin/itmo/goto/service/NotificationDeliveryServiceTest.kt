@@ -7,10 +7,8 @@ import itmo.goto.bot.BotSender
 import itmo.goto.bot.BotUnavailable
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
-import org.mockito.ArgumentMatchers.any
 import org.mockito.ArgumentMatchers.anyLong
 import org.mockito.ArgumentMatchers.anyString
-import org.mockito.ArgumentMatchers.contains
 import org.mockito.Mockito.doThrow
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
@@ -105,12 +103,19 @@ class NotificationDeliveryServiceTest(
     @Test
     fun `comment notification uses event button and excludes comment text`() {
         val id = due("comment")
+        val eventId = jdbc.queryForObject<UUID>("SELECT event_id FROM notifications WHERE id = ?", id)
+        val chatId = jdbc.queryForObject<Long>(
+            "SELECT u.tg_id FROM users u JOIN notifications n ON n.user_id = u.id WHERE n.id = ?", id,
+        )
+        val title = jdbc.queryForObject<String>(
+            "SELECT e.title FROM events e JOIN notifications n ON n.event_id = e.id WHERE n.id = ?", id,
+        )
         delivery.deliver()
         entities.flush()
         assertThat(sent(id))
             .withFailMessage("Comment notification was not sent")
             .isNotNull()
-        verify(sender).comment(anyLong(), contains("Новый комментарий"), any(UUID::class.java))
+        verify(sender).comment(chatId!!, "Новый комментарий к событию «$title».", eventId!!)
         verify(sender, never()).message(anyLong(), anyString())
     }
 
