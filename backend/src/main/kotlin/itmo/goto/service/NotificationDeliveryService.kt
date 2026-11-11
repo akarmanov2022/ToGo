@@ -27,12 +27,16 @@ class NotificationDeliveryService(
     fun deliver() {
         val now = clock.instant()
         notifications.due(now).forEach { notice ->
-            val state = notice.event.meeting().state()
-            if (notice.kind.startsWith("reminder_") && state in cancelled) {
+            val state = notice.event.meeting().current(now).state()
+            if (notice.kind.startsWith("reminder_") && (state in inactive || !now.isBefore(notice.event.startsAt))) {
                 notice.sentAt = now
             } else {
                 try {
-                    sender.message(notice.user.tgId, text(notice))
+                    if (notice.kind == "comment") {
+                        sender.comment(notice.user.tgId, text(notice), checkNotNull(notice.event.id))
+                    } else {
+                        sender.message(notice.user.tgId, text(notice))
+                    }
                     notice.sentAt = now
                 } catch (_: BotBlocked) {
                     notice.sentAt = now
@@ -57,12 +61,13 @@ class NotificationDeliveryService(
             }
             "reminder_day" -> "Напоминание: встреча «${event.title}» начнётся через сутки, $time UTC."
             "reminder_hour" -> "Напоминание: встреча «${event.title}» начнётся через час, $time UTC."
+            "comment" -> "Новый комментарий к событию «${event.title}»."
             else -> error("Неизвестный вид уведомления")
         }
     }
 
     companion object {
-        private val cancelled = setOf(State.CANCELLED_BY_ORGANIZER, State.CANCELLED_BY_SYSTEM)
+        private val inactive = setOf(State.CANCELLED_BY_ORGANIZER, State.CANCELLED_BY_SYSTEM, State.FINISHED)
         private val timestamp = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").withZone(ZoneOffset.UTC)
     }
 }

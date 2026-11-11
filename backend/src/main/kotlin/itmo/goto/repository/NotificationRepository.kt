@@ -11,6 +11,14 @@ interface NotificationRepository : JpaRepository<Notification, UUID> {
 
     fun deleteByUserIdAndEventIdAndKindInAndSentAtIsNull(user: UUID, event: UUID, kinds: Collection<String>)
 
-    @Query("SELECT n FROM Notification n WHERE n.sentAt IS NULL AND n.dueAt <= ?1 AND n.attempts < 3 ORDER BY n.dueAt")
+    @Query(
+        value = """
+            SELECT * FROM notifications
+            WHERE sent_at IS NULL AND due_at <= ?1 AND attempts < 3
+            ORDER BY due_at
+            FOR UPDATE SKIP LOCKED
+        """,
+        nativeQuery = true,
+    )
     fun due(now: Instant): List<Notification>
 }

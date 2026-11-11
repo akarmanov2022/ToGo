@@ -10,6 +10,7 @@ import itmo.goto.repository.ParticipationRepository
 import org.springframework.stereotype.Service
 import java.time.Duration
 import java.time.Instant
+import java.util.UUID
 
 /** Records delivery work in the same transaction as the event change. */
 @Service
@@ -34,6 +35,12 @@ class NotificationQueue(
         notifications.deleteByUserIdAndEventIdAndKindInAndSentAtIsNull(
             checkNotNull(user.id), checkNotNull(event.id), listOf("reminder_day", "reminder_hour"),
         )
+    }
+
+    fun comment(event: Event, authorId: UUID, commentId: UUID, now: Instant) {
+        participations.allMembers(checkNotNull(event.id))
+            .filter { it.id != authorId }
+            .forEach { notifications.save(Notification(it, event, "comment", now, commentId)) }
     }
 
     fun settle(event: Event, meeting: Meeting, now: Instant) {

@@ -21,6 +21,7 @@ class Notification(
     val event: Event,
     val kind: String,
     var dueAt: Instant,
+    val commentId: UUID? = null,
 ) {
     @Id
     @UuidGenerator(style = UuidGenerator.Style.VERSION_7)

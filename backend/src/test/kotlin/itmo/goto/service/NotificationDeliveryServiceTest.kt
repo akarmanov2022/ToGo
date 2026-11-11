@@ -7,9 +7,12 @@ import itmo.goto.bot.BotSender
 import itmo.goto.bot.BotUnavailable
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
+import org.mockito.ArgumentMatchers.any
 import org.mockito.ArgumentMatchers.anyLong
 import org.mockito.ArgumentMatchers.anyString
+import org.mockito.ArgumentMatchers.contains
 import org.mockito.Mockito.doThrow
+import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoInteractions
 import org.springframework.beans.factory.annotation.Autowired
@@ -84,6 +87,34 @@ class NotificationDeliveryServiceTest(
     }
 
     @Test
+    fun `expired recruiting event without minimum does not send a reminder`() {
+        val id = due("reminder_hour")
+        jdbc.update(
+            "UPDATE events SET min_users = 2, registration_closes_at = ? " +
+                "WHERE id = (SELECT event_id FROM notifications WHERE id = ?)",
+            java.sql.Timestamp.from(now.minusSeconds(60)), id,
+        )
+        delivery.deliver()
+        entities.flush()
+        assertThat(sent(id))
+            .withFailMessage("Reminder for an expired event stayed pending")
+            .isNotNull()
+        verifyNoInteractions(sender)
+    }
+
+    @Test
+    fun `comment notification uses event button and excludes comment text`() {
+        val id = due("comment")
+        delivery.deliver()
+        entities.flush()
+        assertThat(sent(id))
+            .withFailMessage("Comment notification was not sent")
+            .isNotNull()
+        verify(sender).comment(anyLong(), contains("Новый комментарий"), any(UUID::class.java))
+        verify(sender, never()).message(anyLong(), anyString())
+    }
+
+    @Test
     fun `third failed attempt stops retries`() {
         val id = due("joined")
         jdbc.update("UPDATE notifications SET attempts = 2 WHERE id = ?", id)
@@ -99,8 +130,13 @@ class NotificationDeliveryServiceTest(
         val rows = Rows(jdbc)
         val user = rows.user()
         val event = rows.event()
-        return rows.notification(user, event, kind).also {
+        val storedKind = if (kind == "comment") "joined" else kind
+        return rows.notification(user, event, storedKind).also {
             jdbc.update("UPDATE notifications SET due_at = ? WHERE id = ?", now.atOffset(ZoneOffset.UTC), it)
+            if (kind == "comment") {
+                val comment = rows.comment(event, user, now)
+                jdbc.update("UPDATE notifications SET kind = 'comment', comment_id = ? WHERE id = ?", comment, it)
+            }
         }
     }
 

@@ -23,7 +23,7 @@ import java.util.UUID
 import kotlin.random.Random
 
 @DataJpaTest(showSql = false)
-@Import(PostgresConfiguration::class, CommentsService::class)
+@Import(PostgresConfiguration::class, CommentsService::class, NotificationQueue::class)
 class CommentsServiceTest(
     @Autowired private val comments: CommentsService,
     @Autowired private val jdbc: JdbcTemplate,
@@ -76,6 +76,36 @@ class CommentsServiceTest(
         assertThat(jdbc.queryForList<UUID>("SELECT id FROM comments WHERE event_id = ?", event))
             .withFailMessage("Published comment isnt stored")
             .containsExactly(id)
+    }
+
+    @Test
+    fun `each comment notifies other current participants including organizer`() {
+        holder()
+        val rows = Rows(jdbc)
+        val event = event()
+        val organizer = jdbc.queryForObject("SELECT organizer_id FROM events WHERE id = ?", UUID::class.java, event)!!
+        val participant = rows.user()
+        val former = rows.user()
+        rows.participant(event, holder)
+        rows.participant(event, participant)
+        rows.participant(event, former)
+        jdbc.update("DELETE FROM event_users WHERE event_id = ? AND user_id = ?", event, former)
+        val first = comments.createEventComment(event, request()).id
+        val second = comments.createEventComment(event, request()).id
+        entities.flush()
+        val deliveries = jdbc.query(
+            "SELECT user_id, comment_id FROM notifications WHERE event_id = ? AND kind = 'comment'",
+            { result, _ ->
+                result.getObject("user_id", UUID::class.java) to result.getObject("comment_id", UUID::class.java)
+            },
+            event,
+        ).toSet()
+        assertThat(deliveries)
+            .withFailMessage("Comment notifications did not target current members once per comment")
+            .containsExactlyInAnyOrder(
+                organizer to first, participant to first,
+                organizer to second, participant to second,
+            )
     }
 
     @Test

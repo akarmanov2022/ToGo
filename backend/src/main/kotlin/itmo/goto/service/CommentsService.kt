@@ -27,6 +27,7 @@ class CommentsService(
     private val users: UserRepository,
     private val identity: Identity,
     private val clock: Clock,
+    private val notifications: NotificationQueue,
 ) : CommentsApiService {
     @Transactional(readOnly = true)
     override fun getEventComments(eventId: UUID, limit: Int, offset: Int): CommentPage {
@@ -52,6 +53,9 @@ class CommentsService(
         val author = users.findById(identity.user()).orElseThrow {
             ApiFailure(ApiError.Code.UNAUTHORIZED, "Учётная запись не найдена, войдите заново")
         }
-        return comments.save(Comment(event, author, createCommentRequest.text, clock.instant())).note()
+        val now = clock.instant()
+        val comment = comments.saveAndFlush(Comment(event, author, createCommentRequest.text, now))
+        notifications.comment(event, identity.user(), checkNotNull(comment.id), now)
+        return comment.note()
     }
 }

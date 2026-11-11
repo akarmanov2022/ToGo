@@ -66,7 +66,7 @@ function submit() {
 }
 </script>
 <template>
-  <section class="comments" aria-label="Комментарии к событию">
+  <section id="comments" class="comments" aria-label="Комментарии к событию">
     <h2>Комментарии</h2>
     <p v-if="comments.isPending.value" role="status">Загружаем комментарии…</p>
     <p v-else-if="unavailable" role="status">Комментарии пока недоступны на сервере.</p>

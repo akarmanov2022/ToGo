@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/vue-query'
 import { ApiError } from '@/common/api/client'
 import AppButton from '@/common/ui/AppButton.vue'
@@ -21,6 +22,7 @@ import EventComments from './EventComments.vue'
 import { cardAction } from './actions'
 
 const props = defineProps<{ eventId: string }>()
+const route = useRoute()
 const queryClient = useQueryClient()
 const actionError = ref('')
 const editOpen = ref(false)
@@ -50,6 +52,16 @@ const participantsQuery = useQuery({
 })
 
 const event = computed(() => eventQuery.data.value)
+watch(
+  [event, () => route?.hash],
+  async ([loaded, hash]) => {
+    if (loaded && hash === '#comments') {
+      await nextTick()
+      document.getElementById('comments')?.scrollIntoView()
+    }
+  },
+  { immediate: true },
+)
 const categoryName = computed(() => {
   const code = event.value?.category
   if (!code) return ''
