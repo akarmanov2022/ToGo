@@ -35,7 +35,8 @@ if [[ "$(docker inspect -f '{{.State.Running}}' togodb)" != true ]]; then
 fi
 
 # Значения приложения берём из серверного .env, а не из SSH-сессии.
-unset DB_USER DB_PASSWORD TELEGRAM_BOT_TOKEN TELEGRAM_WEBHOOK_SECRET
+unset DB_USER DB_PASSWORD TELEGRAM_BOT_TOKEN TELEGRAM_WEBHOOK_SECRET \
+    GRAFANA_USER GRAFANA_PASSWORD
 compose=(docker compose --project-name "$project" --env-file "$env_file"
     -f "$release_dir/infra/docker-compose.prod.yml")
 "${compose[@]}" config --quiet
@@ -65,6 +66,16 @@ for container in togo-backend togo-frontend; do
 done
 curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 3 \
     --max-time 15 --resolve dev-togo.ru:443:127.0.0.1 https://dev-togo.ru/ -o /dev/null
+
+# Мониторинг (Prometheus, Grafana, postgres-exporter) поднимаем после основного
+# релиза и не роняем деплой, если с ним что-то не так.
+if "${compose[@]}" pull prometheus grafana postgres-exporter &&
+    "${compose[@]}" up -d --no-deps --no-build --wait --wait-timeout 120 \
+        postgres-exporter prometheus grafana; then
+    echo 'Мониторинг запущен.'
+else
+    echo 'ВНИМАНИЕ: мониторинг не запустился, основной релиз при этом развёрнут.' >&2
+fi
 
 if [[ -f "$deploy_path/.deploy/current" ]]; then
     cp "$deploy_path/.deploy/current" "$deploy_path/.deploy/previous"
