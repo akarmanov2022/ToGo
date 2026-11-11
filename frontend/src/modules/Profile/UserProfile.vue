@@ -129,6 +129,12 @@ function refetchList() {
   if (tab.value !== 'Архив') return meetingsQuery.refetch()
   return archiveQuery.refetch()
 }
+const listFetching = computed(() =>
+  tab.value === 'Архив' ? archiveQuery.isFetching.value : meetingsQuery.isFetching.value,
+)
+function reloadProfile() {
+  return profileQuery.refetch()
+}
 </script>
 <template>
   <section :class="profile ? 'layout' : 'solo'">
@@ -137,7 +143,13 @@ function refetchList() {
     </p>
     <div v-else-if="profileQuery.isError.value" class="state">
       <p>Не удалось загрузить профиль.</p>
-      <AppButton size="sm" variant="secondary" @click="profileQuery.refetch()">Повторить</AppButton>
+      <AppButton
+        size="sm"
+        variant="secondary"
+        :disabled="profileQuery.isFetching.value"
+        @click="reloadProfile"
+        >{{ profileQuery.isFetching.value ? 'Загружаем…' : 'Повторить' }}</AppButton
+      >
     </div>
     <template v-else-if="profile">
       <AppCard as="aside" class="summary">
@@ -191,7 +203,13 @@ function refetchList() {
           </p>
           <div v-else-if="listError" class="state compact">
             <p>Не удалось загрузить список.</p>
-            <AppButton size="sm" variant="secondary" @click="refetchList()">Повторить</AppButton>
+            <AppButton
+              size="sm"
+              variant="secondary"
+              :disabled="listFetching"
+              @click="refetchList"
+              >{{ listFetching ? 'Загружаем…' : 'Повторить' }}</AppButton
+            >
           </div>
           <p v-else-if="list.length === 0" class="empty">Здесь пока пусто.</p>
           <div v-else class="events">
@@ -205,7 +223,7 @@ function refetchList() {
               :place="`${event.location} · ${participantsLine(event)}${event.isOrganizer ? ' · вы организатор' : ''}`"
               :pink="i % 2 === 0"
               :organizer="event.organizer"
-              :icon="event.icon"
+              :category="event.category"
             />
           </div>
         </template>

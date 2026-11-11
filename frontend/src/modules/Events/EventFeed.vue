@@ -225,7 +225,7 @@ function run(event: EventDto) {
             :place="`${event.location} · ${participantsLine(event)}`"
             :pink="i % 2 === 1"
             :organizer="event.organizer"
-            :icon="event.icon"
+            :category="event.category"
           >
             <div
               v-if="confirmingId === event.id"

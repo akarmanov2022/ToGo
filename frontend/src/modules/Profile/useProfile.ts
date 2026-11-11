@@ -15,6 +15,7 @@ export function useProfile(userId: MaybeRefOrGetter<string | undefined>) {
     data: computed(() => (isOwn.value ? own.data.value : other.data.value)),
     isPending: computed(() => (isOwn.value ? own.isPending.value : other.isPending.value)),
     isError: computed(() => (isOwn.value ? own.isError.value : other.isError.value)),
+    isFetching: computed(() => (isOwn.value ? own.isFetching.value : other.isFetching.value)),
     refetch: () => (isOwn.value ? own.refetch() : other.refetch()),
   }
 }

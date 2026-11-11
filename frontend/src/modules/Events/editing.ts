@@ -1,10 +1,10 @@
 import type { EventDto, UpdateEventBody } from './api'
 import { validateEventFields } from './eventForm'
+import { categoryEmoji } from './categories'
 
 export interface EditDraft {
   title: string
   description: string
-  icon: string
   category: EventDto['category']
   minUsers: string
   maxUsers: string
@@ -14,7 +14,6 @@ export function editDraft(event: EventDto): EditDraft {
   return {
     title: event.title,
     description: event.description,
-    icon: event.icon ?? '',
     category: event.category,
     minUsers: String(event.minUsers),
     maxUsers: String(event.maxUsers),
@@ -22,10 +21,13 @@ export function editDraft(event: EventDto): EditDraft {
   }
 }
 export function validateEdit(draft: EditDraft, event: EventDto, now: Date): Record<string, string> {
-  const errors: Record<string, string> = validateEventFields(draft, {
-    original: { title: event.title, icon: event.icon ?? '' },
-    participantsCount: event.participantsCount,
-  })
+  const errors: Record<string, string> = validateEventFields(
+    { ...draft, icon: categoryEmoji(draft.category) },
+    {
+      original: { title: event.title, icon: event.icon ?? '' },
+      participantsCount: event.participantsCount,
+    },
+  )
   const deadline = Date.parse(draft.registrationClosesAt)
   if (
     !Number.isFinite(deadline) ||
@@ -40,7 +42,8 @@ export function editPatch(draft: EditDraft, event: EventDto): UpdateEventBody {
   const patch: UpdateEventBody = {}
   if (draft.title.trim() !== event.title) patch.title = draft.title.trim()
   if (draft.description.trim() !== event.description) patch.description = draft.description.trim()
-  if (draft.icon.trim() !== (event.icon ?? '')) patch.icon = draft.icon.trim()
+  const icon = categoryEmoji(draft.category)
+  if (icon !== event.icon) patch.icon = icon
   if (draft.category !== event.category) patch.category = draft.category
   if (Number(draft.minUsers) !== event.minUsers) patch.minUsers = Number(draft.minUsers)
   if (Number(draft.maxUsers) !== event.maxUsers) patch.maxUsers = Number(draft.maxUsers)

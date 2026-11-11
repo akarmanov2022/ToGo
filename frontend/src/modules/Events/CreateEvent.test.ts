@@ -36,6 +36,8 @@ it('binds all three schedule values independently in the creation form', async (
       const field = fields[index]!
       await field.get('.calendar-toggle').trigger('click')
       await field.get('button[aria-label="2026-11-11"]').trigger('click')
+      expect(wrapper.findAll('.schedule-error').every((error) => !error.text())).toBe(true)
+      expect(wrapper.findAll('.form > .error')).toHaveLength(0)
       await field.get('.time-trigger').trigger('click')
       const timeParts = field.findAll('.time-number')
       await timeParts[0]!.setValue(String([18, 21, 15][index]))
@@ -101,10 +103,14 @@ it('при нажатии на пустую форму показывает об
     await flushPromises()
     const submit = wrapper.get('button[type="submit"]')
     expect((submit.element as HTMLButtonElement).disabled).toBe(false)
+    await wrapper.get('input').setValue('Название!')
+    expect(wrapper.text()).not.toContain('Название: буквы')
     await submit.trigger('click')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
     expect(wrapper.text()).toContain('Пожалуйста, заполните обязательные поля')
+    expect(wrapper.text()).toContain('Название: буквы')
+    expect(wrapper.findComponent(EventSchedule).props('showErrors')).toBe(true)
     expect(fetch.mock.calls.some(([, options]) => options?.method === 'POST')).toBe(false)
   } finally {
     wrapper.unmount()

@@ -5,6 +5,7 @@ import { ApiError } from '@/common/api/client'
 import AppButton from '@/common/ui/AppButton.vue'
 import AppCard from '@/common/ui/AppCard.vue'
 import LoadingText from '@/common/ui/LoadingText.vue'
+import { EventMap } from '@/modules/Map'
 import {
   cancelEvent,
   fetchCategories,
@@ -152,7 +153,7 @@ const busy = computed(
           <p><strong>Место:</strong> {{ event.location }}</p>
           <p><strong>Участники:</strong> {{ participantsLine(event) }}</p>
           <p>
-            <strong>Организатор:</strong>
+            <strong>Организатор:</strong>{{ ' ' }}
             <RouterLink :to="`/users/${event.organizer.id}`">{{
               event.organizer.tgLogin ? `@${event.organizer.tgLogin}` : 'Профиль организатора'
             }}</RouterLink>
@@ -230,6 +231,26 @@ const busy = computed(
         </div>
       </div>
 
+      <section class="location">
+        <h2>Место на карте</h2>
+        <EventMap
+          v-if="event.latitude !== null && event.longitude !== null"
+          :points="[
+            {
+              id: event.id,
+              title: event.location,
+              latitude: event.latitude,
+              longitude: event.longitude,
+            },
+          ]"
+          :selectable="false"
+          label="Место события на карте"
+        />
+        <p v-else class="hint">
+          Для этого события координаты не указаны. Адрес: {{ event.location }}
+        </p>
+      </section>
+
       <section class="people">
         <h2>Участники</h2>
         <p v-if="participantsQuery.isPending.value" class="state compact">
@@ -265,6 +286,12 @@ const busy = computed(
   </section>
 </template>
 <style scoped>
+.location {
+  margin-top: 24px;
+}
+.location h2 {
+  margin-bottom: 12px;
+}
 .back {
   display: inline-block;
   margin-bottom: 12px;

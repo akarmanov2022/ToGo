@@ -34,7 +34,6 @@ const fields = [
 ] as const
 const id = useId()
 const currentTime = ref(props.now())
-const touched = reactive<Partial<Record<ScheduleField, boolean>>>({})
 const draft = reactive({
   startsAt: toLocalDateTime(props.modelValue.startsAt),
   endsAt: toLocalDateTime(props.modelValue.endsAt),
@@ -80,7 +79,6 @@ function calendarBounds(field: ScheduleField): { min: string; max?: string } {
 }
 
 function update(field: ScheduleField) {
-  touched[field] = true
   currentTime.value = props.now()
   emit('update:modelValue', { ...props.modelValue, [field]: toScheduleTimestamp(draft[field]) })
 }
@@ -106,7 +104,7 @@ function applyDate(field: ScheduleField, value: string) {
           <CalendarPicker
             :model-value="draft[field.key].date"
             :label="`${field.label}: дата`"
-            :invalid="Boolean((showErrors || touched[field.key]) && errors[field.key])"
+            :invalid="Boolean(showErrors && errors[field.key])"
             :described-by="`${id}-${field.key}-error`"
             v-bind="calendarBounds(field.key)"
             @update:model-value="applyDate(field.key, $event)"
@@ -117,14 +115,14 @@ function applyDate(field: ScheduleField, value: string) {
           <TimePicker
             :model-value="draft[field.key].time"
             :label="`${field.label}: время`"
-            :invalid="Boolean((showErrors || touched[field.key]) && errors[field.key])"
+            :invalid="Boolean(showErrors && errors[field.key])"
             :described-by="`${id}-${field.key}-error`"
             @update:model-value="applyTime(field.key, $event)"
           />
         </div>
       </div>
       <p :id="`${id}-${field.key}-error`" class="schedule-error" aria-live="polite">
-        {{ showErrors || touched[field.key] ? errors[field.key] : '' }}
+        {{ showErrors ? errors[field.key] : '' }}
       </p>
     </fieldset>
   </div>
