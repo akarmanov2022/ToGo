@@ -34,6 +34,7 @@ class SecurityConfiguration {
                 it.requestMatchers(HttpMethod.POST, "/api/v1/auth/telegram").permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/v1/bot/webhook").permitAll()
                     .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/actuator/prometheus").permitAll()
                     .requestMatchers(
                         HttpMethod.GET,
                         "/swagger-ui.html",

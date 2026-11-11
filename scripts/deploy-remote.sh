@@ -37,7 +37,7 @@ release_dir="$DEPLOY_PATH/.deploy/releases/$TOGO_RELEASE_SHA"
 # sshpass получает пароль из окружения; stdin остаётся для архива и токена реестра.
 SSHPASS="$ROOT_PASSWORD" "${ssh_command[@]}" "$destination" "mkdir -p '$release_dir'"
 # .env, сертификаты и исходники приложения не входят в архив релиза.
-tar -C "$root" -czf - infra/docker-compose.prod.yml infra/nginx scripts/deploy.sh |
+tar -C "$root" -czf - infra/docker-compose.prod.yml infra/nginx infra/monitoring scripts/deploy.sh |
     SSHPASS="$ROOT_PASSWORD" "${ssh_command[@]}" "$destination" "tar -xzf - -C '$release_dir'"
 printf '%s\n' "$DOCKERHUB_TOKEN" |
     SSHPASS="$ROOT_PASSWORD" "${ssh_command[@]}" "$destination" \
