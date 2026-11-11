@@ -10,3 +10,17 @@ export const eventCategories = [
   { code: 'CINEMA', name: 'Кино' },
   { code: 'CAFE', name: 'Кафе/Ресторан' },
 ] as const satisfies readonly components['schemas']['Category'][]
+
+const categoryEmojis = new Map<string, string>([
+  ['PICNIC', '🧺'],
+  ['RUN', '🏃'],
+  ['EXCURSION', '🏛️'],
+  ['BOARD_GAMES', '🎲'],
+  ['QUEST', '🔎'],
+  ['CINEMA', '🎬'],
+  ['CAFE', '☕'],
+])
+
+export function categoryEmoji(category: string): string {
+  return categoryEmojis.get(category) ?? '📅'
+}

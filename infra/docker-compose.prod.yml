@@ -70,12 +70,66 @@ services:
       - web
     restart: unless-stopped
 
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:latest
+    container_name: togo-postgres-exporter
+    environment:
+      DATA_SOURCE_URI: postgres:5432/togo?sslmode=disable
+      DATA_SOURCE_USER: ${DB_USER:?Задайте DB_USER существующей базы}
+      DATA_SOURCE_PASS: ${DB_PASSWORD:?Задайте DB_PASSWORD существующей базы}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - database
+      - monitoring
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: togo-prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - web
+      - monitoring
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: togo-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana-datasource.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
+      - ./monitoring/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./monitoring/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - monitoring
+    restart: unless-stopped
+
 networks:
   web:
   database:
     internal: true
+  monitoring:
 
 volumes:
   postgres_data:
     external: true
     name: ${TOGO_POSTGRES_VOLUME:?Укажите существующий том PostgreSQL}
+  prometheus_data:
+  grafana_data:

@@ -52,6 +52,33 @@ function render(userId?: string) {
   })
 }
 
+it('повторяет загрузку профиля настоящим кликом после ошибки', async () => {
+  apiRequest.mockRejectedValueOnce(new Error('offline'))
+  const wrapper = render()
+  await flushPromises()
+  expect(wrapper.text()).toContain('Не удалось загрузить профиль')
+  await wrapper.get('button').trigger('click')
+  await flushPromises()
+  expect(wrapper.find('.summary').exists()).toBe(true)
+})
+
+it('повторяет загрузку списка настоящим кликом после ошибки', async () => {
+  let fail = true
+  apiRequest.mockImplementation((path: string) => {
+    if (path.startsWith('/api/v1/users/')) return Promise.resolve({ ...profile })
+    if (path === '/api/v1/categories') return Promise.resolve([])
+    return fail ? Promise.reject(new Error('offline')) : Promise.resolve({ items: [], total: 0 })
+  })
+  const wrapper = render()
+  await flushPromises()
+  expect(wrapper.text()).toContain('Не удалось загрузить список')
+  fail = false
+  const retry = wrapper.findAll('button').find((button) => button.text() === 'Повторить')!
+  await retry.trigger('click')
+  await flushPromises()
+  expect(wrapper.text()).toContain('Здесь пока пусто')
+})
+
 it('не показывает интересы и «Настолки» в своём профиле и его редакторе', async () => {
   const wrapper = render()
   await flushPromises()

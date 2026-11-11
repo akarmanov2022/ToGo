@@ -71,6 +71,8 @@ jobs:
           TELEGRAM_WEBHOOK_SECRET: validation-placeholder
           DB_USER: togo
           DB_PASSWORD: validation-placeholder
+          GRAFANA_USER: admin
+          GRAFANA_PASSWORD: admin
         run: docker compose -f infra/docker-compose.prod.yml config --quiet
   images:
     name: Publish images
@@ -93,3 +95,5 @@ jobs:
       DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
       DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      GRAFANA_USER:  ${{ secrets.GRAFANA_USER }}
+      GRAFANA_PASSWORD:  ${{ secrets.GRAFANA_PASSWORD }}

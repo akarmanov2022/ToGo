@@ -3,6 +3,8 @@ export interface Coordinates {
   longitude: number
 }
 
+export type PlaceBounds = [south: number, west: number, north: number, east: number]
+
 export interface EventMapPoint {
   id: string
   title: string
