@@ -33,3 +33,25 @@ it('не вызывает Telegram API без initData или в старом к
   await expect(requestTelegramWriteAccess()).resolves.toBeNull()
   expect(request).not.toHaveBeenCalled()
 })
+
+it('не спрашивает разрешение повторно, если Telegram уже разрешил сообщения', async () => {
+  const request = vi.fn()
+  vi.stubGlobal('Telegram', {
+    WebApp: {
+      initData: 'signed-data',
+      requestWriteAccess: request,
+      initDataUnsafe: { user: { allows_write_to_pm: true } },
+    },
+  })
+  await expect(requestTelegramWriteAccess()).resolves.toBe(true)
+  expect(request).not.toHaveBeenCalled()
+})
+
+it('сбой запроса разрешения не мешает открытию приложения', async () => {
+  const request = vi.fn(() => {
+    throw new Error('Telegram API unavailable')
+  })
+  vi.stubGlobal('Telegram', { WebApp: { initData: 'signed-data', requestWriteAccess: request } })
+  await expect(requestTelegramWriteAccess()).resolves.toBeNull()
+  expect(request).toHaveBeenCalledOnce()
+})

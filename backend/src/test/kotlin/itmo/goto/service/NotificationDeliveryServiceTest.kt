@@ -9,8 +9,10 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentMatchers.anyLong
 import org.mockito.ArgumentMatchers.anyString
+import org.mockito.Mockito.doNothing
 import org.mockito.Mockito.doThrow
 import org.mockito.Mockito.never
+import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoInteractions
 import org.springframework.beans.factory.annotation.Autowired
@@ -59,6 +61,22 @@ class NotificationDeliveryServiceTest(
         assertThat(jdbc.queryForObject<Int>("SELECT attempts FROM notifications WHERE id = ?", id))
             .withFailMessage("Temporary Telegram failure was not counted")
             .isEqualTo(1)
+    }
+
+    @Test
+    fun `temporary failure sends on the next due attempt`() {
+        val id = due("joined")
+        doThrow(BotUnavailable()).doNothing().`when`(sender).message(anyLong(), anyString())
+        delivery.deliver()
+        entities.flush()
+        entities.clear()
+        jdbc.update("UPDATE notifications SET due_at = ? WHERE id = ?", now.atOffset(ZoneOffset.UTC), id)
+        delivery.deliver()
+        entities.flush()
+        assertThat(sent(id))
+            .withFailMessage("A notification was not sent after a temporary failure")
+            .isNotNull()
+        verify(sender, times(2)).message(anyLong(), anyString())
     }
 
     @Test
