@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
@@ -26,25 +27,27 @@ class NotificationDeliveryService(
     @Transactional
     fun deliver() {
         val now = clock.instant()
-        notifications.due(now).forEach { notice ->
-            val state = notice.event.meeting().current(now).state()
-            if (notice.kind.startsWith("reminder_") && (state in inactive || !now.isBefore(notice.event.startsAt))) {
-                notice.sentAt = now
+        notifications.due(now).forEach { deliver(it, now) }
+    }
+
+    private fun deliver(notice: Notification, now: Instant) {
+        val state = notice.event.meeting().current(now).state()
+        if (notice.kind.startsWith("reminder_") && (state in inactive || !now.isBefore(notice.event.startsAt))) {
+            notice.sentAt = now
+            return
+        }
+        try {
+            if (notice.kind == "comment") {
+                sender.comment(notice.user.tgId, text(notice), checkNotNull(notice.event.id))
             } else {
-                try {
-                    if (notice.kind == "comment") {
-                        sender.comment(notice.user.tgId, text(notice), checkNotNull(notice.event.id))
-                    } else {
-                        sender.message(notice.user.tgId, text(notice))
-                    }
-                    notice.sentAt = now
-                } catch (_: BotBlocked) {
-                    notice.sentAt = now
-                } catch (_: BotUnavailable) {
-                    notice.attempts++
-                    notice.dueAt = now.plus(Duration.ofMinutes(1))
-                }
+                sender.message(notice.user.tgId, text(notice))
             }
+            notice.sentAt = now
+        } catch (_: BotBlocked) {
+            notice.sentAt = now
+        } catch (_: BotUnavailable) {
+            notice.attempts++
+            notice.dueAt = now.plus(Duration.ofMinutes(1))
         }
     }
 
