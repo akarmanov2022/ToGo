@@ -6,5 +6,6 @@
 ## Ссылки:
 - [ToGo Wiki](https://cs-uni.ru/index.php?title=ToGo#.D0.97.D0.B0.D0.B4.D0.B0.D1.87.D0.B8)
 - [Figma](https://www.figma.com/design/7Mo9fyQb4XSPjf7ruO68j9/Хакатон-ToGo?node-id=0-1&p=f&t=mu1FuYeRusySLtkv-0)
+- [Презентация](https://docs.google.com/presentation/d/1TA31ExPOAniajF3zjS97OFCPjGefrzTnHH3F0S8Bdis/edit?usp=sharing)
 
 
