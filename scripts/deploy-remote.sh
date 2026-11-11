@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Выполняется на GitHub runner. Секреты передаются только через окружение/stdin.
+# Выполняется на GitHub runner.
+# Секреты передаются только через окружение/stdin.
 for name in USER_IP USERNAME ROOT_PASSWORD DEPLOY_KNOWN_HOSTS \
     DOCKERHUB_USERNAME DOCKERHUB_TOKEN TOGO_RELEASE_SHA \
     GRAFANA_USER GRAFANA_PASSWORD; do
@@ -26,21 +27,34 @@ DEPLOY_PORT="${DEPLOY_PORT:-22}"
 command -v sshpass >/dev/null
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 ssh_dir="$(mktemp -d)"
 trap 'rm -rf "$ssh_dir"' EXIT
+
 chmod 700 "$ssh_dir"
+
 printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
 chmod 600 "$ssh_dir/known_hosts"
 
-ssh_command=(sshpass -e ssh -p "$DEPLOY_PORT" -o BatchMode=no
-    -o PreferredAuthentications=password -o PubkeyAuthentication=no
-    -o NumberOfPasswordPrompts=1 -o StrictHostKeyChecking=yes
-    -o "UserKnownHostsFile=$ssh_dir/known_hosts" -o ConnectTimeout=15)
+ssh_command=(
+    sshpass -e ssh
+    -p "$DEPLOY_PORT"
+    -o BatchMode=no
+    -o PreferredAuthentications=password
+    -o PubkeyAuthentication=no
+    -o NumberOfPasswordPrompts=1
+    -o StrictHostKeyChecking=yes
+    -o "UserKnownHostsFile=$ssh_dir/known_hosts"
+    -o ConnectTimeout=15
+)
+
 destination="$USERNAME@$USER_IP"
 release_dir="$DEPLOY_PATH/.deploy/releases/$TOGO_RELEASE_SHA"
 
-# sshpass получает пароль из окружения; stdin остаётся для архива и токена реестра.
-SSHPASS="$ROOT_PASSWORD" "${ssh_command[@]}" "$destination" "mkdir -p '$release_dir'"
+# Создаём директорию релиза.
+SSHPASS="$ROOT_PASSWORD" \
+    "${ssh_command[@]}" "$destination" \
+    "mkdir -p '$release_dir'"
 
 # Передаём файлы релиза.
 # .env, сертификаты и исходники приложения не входят в архив.
