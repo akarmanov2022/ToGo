@@ -57,7 +57,12 @@ class NotificationDeliveryRaceTest(
             release.countDown()
             first.get(5, TimeUnit.SECONDS)
             verify(sender).message(anyLong(), anyString())
-            assertThat(jdbc.queryForObject("SELECT sent_at IS NOT NULL FROM notifications WHERE id = ?", Boolean::class.java, id))
+            val sent = jdbc.queryForObject(
+                "SELECT sent_at IS NOT NULL FROM notifications WHERE id = ?",
+                Boolean::class.java,
+                id,
+            )
+            assertThat(sent)
                 .withFailMessage("Concurrent delivery left the notification pending")
                 .isTrue()
         } finally {

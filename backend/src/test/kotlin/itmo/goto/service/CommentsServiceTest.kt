@@ -103,8 +103,10 @@ class CommentsServiceTest(
         assertThat(deliveries)
             .withFailMessage("Comment notifications did not target current members once per comment")
             .containsExactlyInAnyOrder(
-                organizer to first, participant to first,
-                organizer to second, participant to second,
+                organizer to first,
+                participant to first,
+                organizer to second,
+                participant to second,
             )
     }
 

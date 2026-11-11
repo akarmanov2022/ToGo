@@ -42,7 +42,12 @@ class EventParticipationServiceTest(
         participation.join(event)
         participation.join(event)
         entities.flush()
-        assertThat(jdbc.queryForList<String>("SELECT kind FROM notifications WHERE event_id = ? AND user_id = ?", event, holder))
+        val kinds = jdbc.queryForList<String>(
+            "SELECT kind FROM notifications WHERE event_id = ? AND user_id = ?",
+            event,
+            holder,
+        )
+        assertThat(kinds)
             .withFailMessage("Repeated joining duplicated a notification")
             .containsExactlyInAnyOrder("joined", "reminder_day", "reminder_hour")
     }
@@ -54,7 +59,12 @@ class EventParticipationServiceTest(
         participation.join(event)
         participation.leave(event)
         entities.flush()
-        assertThat(jdbc.queryForList<String>("SELECT kind FROM notifications WHERE event_id = ? AND user_id = ?", event, holder))
+        val kinds = jdbc.queryForList<String>(
+            "SELECT kind FROM notifications WHERE event_id = ? AND user_id = ?",
+            event,
+            holder,
+        )
+        assertThat(kinds)
             .withFailMessage("Leaving kept pending reminders")
             .containsExactly("joined")
     }

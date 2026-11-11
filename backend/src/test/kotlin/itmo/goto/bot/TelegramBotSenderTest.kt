@@ -22,7 +22,17 @@ class TelegramBotSenderTest {
         server.expect(requestTo("https://api.telegram.test/bot7000000005:AAbot-sender-test-token/sendMessage"))
             .andExpect(
                 content().json(
-                    """{"text":"Новый комментарий к событию «Настолки».","reply_markup":{"inline_keyboard":[[{"text":"Открыть комментарии","web_app":{"url":"https://dev-togo.ru/events/$event#comments"}}]]}}""",
+                    """
+                    {
+                      "text": "Новый комментарий к событию «Настолки».",
+                      "reply_markup": {
+                        "inline_keyboard": [[{
+                          "text": "Открыть комментарии",
+                          "web_app": {"url": "https://dev-togo.ru/events/$event#comments"}
+                        }]]
+                      }
+                    }
+                    """.trimIndent(),
                     false,
                 ),
             )
@@ -47,7 +57,7 @@ class TelegramBotSenderTest {
                     """
                     {
                       "chat_id": $chatId,
-                      "text": "Привет! ToGo помогает находить события и компанию рядом. Открой приложение, чтобы начать.",
+                  "text": "Привет! ToGo помогает находить события и компанию рядом. Открой приложение, чтобы начать.",
                       "reply_markup": {
                         "inline_keyboard": [[{"text": "Открыть ToGo", "web_app": {"url": "https://dev-togo.ru/"}}]]
                       }

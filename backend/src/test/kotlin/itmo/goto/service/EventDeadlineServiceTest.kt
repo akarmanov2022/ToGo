@@ -38,9 +38,14 @@ class EventDeadlineServiceTest(
         deadlines.settle()
         deadlines.settle()
         entities.flush()
-        assertThat(jdbc.queryForList<UUID>("SELECT user_id FROM notifications WHERE event_id = ? AND kind = 'confirmed'", event))
+        val recipients = jdbc.queryForList<UUID>(
+            "SELECT user_id FROM notifications WHERE event_id = ? AND kind = 'confirmed'",
+            event,
+        )
+        val organizer = jdbc.queryForObject("SELECT organizer_id FROM events WHERE id = ?", UUID::class.java, event)
+        assertThat(recipients)
             .withFailMessage("Deadline did not confirm each participant exactly once")
-            .containsExactlyInAnyOrder(guest, jdbc.queryForObject("SELECT organizer_id FROM events WHERE id = ?", UUID::class.java, event))
+            .containsExactlyInAnyOrder(guest, organizer)
     }
 
     @Test
@@ -51,9 +56,14 @@ class EventDeadlineServiceTest(
         jdbc.update("UPDATE events SET participants_count = 2, min_users = 3 WHERE id = ?", event)
         deadlines.settle()
         entities.flush()
-        assertThat(jdbc.queryForList<UUID>("SELECT user_id FROM notifications WHERE event_id = ? AND kind = 'cancelled'", event))
+        val recipients = jdbc.queryForList<UUID>(
+            "SELECT user_id FROM notifications WHERE event_id = ? AND kind = 'cancelled'",
+            event,
+        )
+        val organizer = jdbc.queryForObject("SELECT organizer_id FROM events WHERE id = ?", UUID::class.java, event)
+        assertThat(recipients)
             .withFailMessage("System cancellation did not notify organizer and guest")
-            .containsExactlyInAnyOrder(guest, jdbc.queryForObject("SELECT organizer_id FROM events WHERE id = ?", UUID::class.java, event))
+            .containsExactlyInAnyOrder(guest, organizer)
     }
 
     @Test

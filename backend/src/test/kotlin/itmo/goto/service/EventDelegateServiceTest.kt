@@ -47,7 +47,11 @@ class EventDelegateServiceTest(
         delegateService.cancel(event)
         Failure { delegateService.cancel(event) }.code()
         entities.flush()
-        assertThat(jdbc.queryForList<UUID>("SELECT user_id FROM notifications WHERE event_id = ? AND kind = 'cancelled'", event))
+        val recipients = jdbc.queryForList<UUID>(
+            "SELECT user_id FROM notifications WHERE event_id = ? AND kind = 'cancelled'",
+            event,
+        )
+        assertThat(recipients)
             .withFailMessage("Organizer cancellation notified the wrong recipients")
             .containsExactly(guest)
     }

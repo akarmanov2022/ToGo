@@ -75,7 +75,11 @@ class NotificationDeliveryServiceTest(
     @Test
     fun `cancelled event does not send a reminder`() {
         val id = due("reminder_hour")
-        jdbc.update("UPDATE events SET state = 'cancelled_by_organizer' WHERE id = (SELECT event_id FROM notifications WHERE id = ?)", id)
+        jdbc.update(
+            "UPDATE events SET state = 'cancelled_by_organizer' " +
+                "WHERE id = (SELECT event_id FROM notifications WHERE id = ?)",
+            id,
+        )
         delivery.deliver()
         entities.flush()
         assertThat(sent(id))
@@ -90,7 +94,8 @@ class NotificationDeliveryServiceTest(
         jdbc.update(
             "UPDATE events SET min_users = 2, registration_closes_at = ? " +
                 "WHERE id = (SELECT event_id FROM notifications WHERE id = ?)",
-            java.sql.Timestamp.from(now.minusSeconds(60)), id,
+            java.sql.Timestamp.from(now.minusSeconds(60)),
+            id,
         )
         delivery.deliver()
         entities.flush()
@@ -105,10 +110,12 @@ class NotificationDeliveryServiceTest(
         val id = due("comment")
         val eventId = jdbc.queryForObject<UUID>("SELECT event_id FROM notifications WHERE id = ?", id)
         val chatId = jdbc.queryForObject<Long>(
-            "SELECT u.tg_id FROM users u JOIN notifications n ON n.user_id = u.id WHERE n.id = ?", id,
+            "SELECT u.tg_id FROM users u JOIN notifications n ON n.user_id = u.id WHERE n.id = ?",
+            id,
         )
         val title = jdbc.queryForObject<String>(
-            "SELECT e.title FROM events e JOIN notifications n ON n.event_id = e.id WHERE n.id = ?", id,
+            "SELECT e.title FROM events e JOIN notifications n ON n.event_id = e.id WHERE n.id = ?",
+            id,
         )
         delivery.deliver()
         entities.flush()

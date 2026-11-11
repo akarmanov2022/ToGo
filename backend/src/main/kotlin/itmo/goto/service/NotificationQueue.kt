@@ -33,7 +33,9 @@ class NotificationQueue(
 
     fun left(event: Event, user: User) {
         notifications.deleteByUserIdAndEventIdAndKindInAndSentAtIsNull(
-            checkNotNull(user.id), checkNotNull(event.id), listOf("reminder_day", "reminder_hour"),
+            checkNotNull(user.id),
+            checkNotNull(event.id),
+            listOf("reminder_day", "reminder_hour"),
         )
     }
 
