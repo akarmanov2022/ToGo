@@ -3,11 +3,11 @@ import type { EventScheduleValue } from '@/modules/EventSchedule'
 import type { MeetingPlace } from '@/modules/Map'
 import { validateEventForm } from './eventForm'
 import { isActiveEvent } from './rules'
+import { categoryEmoji } from './categories'
 
 export interface CreationDraft {
   title: string
   description: string
-  icon?: string
   category: string
   minUsers: string
   maxUsers: string
@@ -19,7 +19,7 @@ export function validateCreation(draft: CreationDraft, now = new Date()) {
     {
       ...draft,
       ...draft.schedule,
-      icon: draft.icon ?? '',
+      icon: categoryEmoji(draft.category),
       location: draft.place?.address ?? '',
     },
     now,

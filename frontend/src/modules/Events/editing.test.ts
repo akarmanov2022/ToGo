@@ -26,12 +26,11 @@ const event: EventDto = {
 }
 
 describe('редактор события', () => {
-  it('отправляет только изменённые разрешённые поля, в том числе пустую иконку', () => {
+  it('при смене категории автоматически отправляет её эмодзи', () => {
     const draft = editDraft(event)
-    draft.icon = ''
     draft.maxUsers = '6'
     draft.category = 'CINEMA'
-    expect(editPatch(draft, event)).toEqual({ icon: '', maxUsers: 6, category: 'CINEMA' })
+    expect(editPatch(draft, event)).toEqual({ icon: '🎬', maxUsers: 6, category: 'CINEMA' })
     expect(Object.keys(editPatch(draft, event))).not.toEqual(
       expect.arrayContaining(['startsAt', 'endsAt', 'location', 'latitude', 'longitude']),
     )
@@ -75,8 +74,6 @@ describe('редактор события', () => {
     expect(validateEdit({ ...editDraft(original), title: 'Новое!' }, original, now)).toHaveProperty(
       'title',
     )
-    expect(validateEdit({ ...editDraft(original), icon: 'new' }, original, now)).toHaveProperty(
-      'icon',
-    )
+    expect(editPatch(editDraft(original), original)).toEqual({ icon: '🎲' })
   })
 })

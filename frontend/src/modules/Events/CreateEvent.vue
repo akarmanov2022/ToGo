@@ -8,24 +8,28 @@ import AppButton from '@/common/ui/AppButton.vue'
 import AppField from '@/common/ui/AppField.vue'
 import LoadingText from '@/common/ui/LoadingText.vue'
 import { useAuthStore } from '@/modules/Auth'
-import { PlacePicker, toCoordinateFields, type MeetingPlace } from '@/modules/Map'
+import {
+  PlacePicker,
+  toCoordinateFields,
+  useMeetingPlaces,
+  type MeetingPlace,
+  type PlaceBounds,
+} from '@/modules/Map'
 import { EventSchedule, emptySchedule } from '@/modules/EventSchedule'
 import { creationRestrictions, validateCreation } from './creation'
-import { eventCategories } from './categories'
-import { demoPlaces } from './demoPlaces'
+import { categoryEmoji, eventCategories } from './categories'
 import EventCard from './EventCard.vue'
 import CategorySelect from './CategorySelect.vue'
 import { formatStart } from './format'
 import { createEvent, fetchCategories } from './api'
 
-const props = withDefaults(defineProps<{ places?: MeetingPlace[] }>(), { places: () => demoPlaces })
+const props = defineProps<{ places?: MeetingPlace[] }>()
 const auth = useAuthStore()
 const router = useRouter()
 const queryClient = useQueryClient()
 const draft = reactive({
   title: '',
   description: '',
-  icon: '',
   category: '',
   minUsers: '1',
   maxUsers: '2',
@@ -38,13 +42,25 @@ const timer = setInterval(() => {
   now.value = new Date()
 }, 1000)
 onUnmounted(() => clearInterval(timer))
+const searchBounds = ref<PlaceBounds>()
+const visibleBounds = ref<PlaceBounds>()
+function updateViewport(bounds: PlaceBounds) {
+  visibleBounds.value = bounds
+  if (!searchBounds.value) searchBounds.value = [...bounds]
+}
+const places = useMeetingPlaces(
+  () => draft.category,
+  () => props.places === undefined && Boolean(searchBounds.value),
+  searchBounds,
+)
 const availablePlaces = computed(() =>
-  props.places.filter((place) => place.category === draft.category),
+  (props.places ?? places.data.value ?? []).filter((place) => place.category === draft.category),
 )
 watch(
   () => draft.category,
   () => {
     draft.place = null
+    if (visibleBounds.value) searchBounds.value = [...visibleBounds.value]
   },
 )
 const categoryQuery = useQuery({
@@ -86,7 +102,7 @@ const create = useMutation({
     createEvent({
       title: draft.title.trim(),
       description: draft.description.trim(),
-      ...(draft.icon.trim() ? { icon: draft.icon.trim() } : {}),
+      icon: categoryEmoji(draft.category),
       category: draft.category as components['schemas']['EventCategory'],
       location: draft.place!.address,
       ...toCoordinateFields(draft.place),
@@ -130,7 +146,6 @@ function submit() {
 }
 function selectCategory(code: string) {
   draft.category = code
-  touched.value = true
 }
 function digits(field: 'minUsers' | 'maxUsers', event: Event) {
   const input = event.target as HTMLInputElement
@@ -143,7 +158,7 @@ function digits(field: 'minUsers' | 'maxUsers', event: Event) {
     <RouterLink class="back" to="/">‹ <span>Назад к событиям</span></RouterLink>
     <h1>Новое событие</h1>
     <div class="layout">
-      <form class="form" novalidate @submit.prevent="submit" @input="touched = true">
+      <form class="form" novalidate @submit.prevent="submit">
         <AppField
           v-model="draft.title"
           label="Название"
@@ -181,16 +196,28 @@ function digits(field: 'minUsers' | 'maxUsers', event: Event) {
         </label>
         <span class="hint">{{ draft.description.length }} / 500</span>
         <p v-if="touched && errors.description" class="error">{{ errors.description }}</p>
-        <EventSchedule v-model="draft.schedule" />
-        <PlacePicker v-model="draft.place" :places="availablePlaces" />
-        <p v-if="touched && errors.place" class="error">{{ errors.place }}</p>
-        <AppField
-          v-model="draft.icon"
-          label="Иконка-эмодзи (необязательно)"
-          placeholder="Например: ☕"
-          maxlength="8"
+        <EventSchedule v-model="draft.schedule" :show-errors="touched" />
+        <p v-if="!draft.category" class="hint">
+            Сначала выберите категорию, чтобы найти места в видимой области карты.
+        </p>
+        <div v-else-if="places.isError.value" role="status">
+          <p class="error">{{ places.error.value?.message || 'Не удалось загрузить места' }}</p>
+          <AppButton size="sm" variant="secondary" @click="places.refetch()"
+            >Повторить поиск мест</AppButton
+          >
+        </div>
+        <PlacePicker
+          v-model="draft.place"
+          :places="availablePlaces"
+          :searchable="props.places === undefined"
+          :searched-bounds="searchBounds"
+          :searching="places.isFetching.value"
+          :search-enabled="Boolean(draft.category)"
+          :show-empty="Boolean(draft.category) && !places.isFetching.value && !places.isError.value"
+          @search-area="searchBounds = $event"
+          @viewport-change="updateViewport"
         />
-        <p v-if="touched && errors.icon" class="error">{{ errors.icon }}</p>
+        <p v-if="touched && errors.place" class="error">{{ errors.place }}</p>
         <div class="row">
           <AppField
             :model-value="draft.minUsers"
@@ -228,7 +255,9 @@ function digits(field: 'minUsers' | 'maxUsers', event: Event) {
         <p v-if="touched && Object.keys(errors).length" class="error" role="status">
           Пожалуйста, заполните обязательные поля
         </p>
-        <p v-for="reason in restrictions" :key="reason" class="error" role="status">{{ reason }}</p>
+        <p v-for="reason in touched ? restrictions : []" :key="reason" class="error" role="status">
+          {{ reason }}
+        </p>
         <p v-if="participating.isError.value" class="error" role="alert">
           Не удалось проверить ваши встречи.
         </p>
@@ -251,7 +280,7 @@ function digits(field: 'minUsers' | 'maxUsers', event: Event) {
           :meta="`${categories.find((item) => item.code === draft.category)?.name || 'Категория'} · ${draft.schedule.startsAt ? formatStart(draft.schedule.startsAt) : 'Дата и время'}`"
           :place="`${draft.place?.address || 'Место'} · до ${draft.maxUsers || '—'} участников`"
           state="Идёт набор"
-          :icon="draft.icon"
+          :category="draft.category"
         />
         <p class="preview-description">{{ draft.description }}</p>
       </aside>

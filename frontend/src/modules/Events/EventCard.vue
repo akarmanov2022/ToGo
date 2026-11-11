@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppCard from '@/common/ui/AppCard.vue'
 import type { components } from '@/common/api/schema'
+import { categoryEmoji } from './categories'
 
 defineProps<{
   title: string
@@ -11,13 +12,13 @@ defineProps<{
   to?: string
   state?: string
   organizer?: components['schemas']['UserSummary']
-  icon?: string | null
+  category?: string
 }>()
 </script>
 <template>
   <AppCard as="article" :accent="accent" class="event-card">
     <RouterLink v-if="to" class="hit" :to="to" :aria-label="title" />
-    <div :class="['icon', { pink }]" aria-hidden="true">{{ icon }}</div>
+    <div :class="['icon', { pink }]" aria-hidden="true">{{ categoryEmoji(category ?? '') }}</div>
     <div class="info">
       <div class="title-row">
         <h2>{{ title }}</h2>

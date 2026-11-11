@@ -6,12 +6,20 @@ import type { MeetingPlace } from './types'
 
 const leaflet = vi.hoisted(() => {
   const tileHandlers = new Map<string, () => void>()
+  const mapHandlers = new Map<string, () => void>()
   const instance = {
     setView: vi.fn(() => instance),
     fitBounds: vi.fn(),
-    on: vi.fn(),
+    on: vi.fn((event: string, handler: () => void) => { mapHandlers.set(event, handler); return instance }),
+    off: vi.fn((event: string) => { mapHandlers.delete(event); return instance }),
     invalidateSize: vi.fn(),
     remove: vi.fn(),
+    getBounds: vi.fn(() => ({
+      getSouth: (): number => 59.925,
+      getWest: (): number => 30.3,
+      getNorth: (): number => 59.95,
+      getEast: (): number => 30.38,
+    })),
     attributionControl: { setPrefix: vi.fn() },
   }
   const tiles = {
@@ -49,6 +57,7 @@ const leaflet = vi.hoisted(() => {
     instance,
     tiles,
     tileHandlers,
+    mapHandlers,
     map: vi.fn(() => instance),
     tileLayer: vi.fn(() => tiles),
     circleMarker: vi.fn(createMarker),
@@ -67,6 +76,8 @@ const disconnect = vi.fn()
 beforeEach(() => {
   vi.clearAllMocks()
   leaflet.tileHandlers.clear()
+  leaflet.mapHandlers.clear()
+  leaflet.instance.getBounds.mockReturnValue({ getSouth: () => 59.925, getWest: () => 30.3, getNorth: () => 59.95, getEast: () => 30.38 })
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -119,6 +130,58 @@ function mountPicker(value: MeetingPlace | null = null) {
   return { host, picker: host.findComponent(PlacePicker), model, options }
 }
 
+it('передаёт область карты для POI-поиска и не сбрасывает ракурс после получения мест', async () => {
+  const wrapper = mount(PlacePicker, { props: { modelValue: null, places: [], searchable: true } })
+  await wrapper.setProps({ places })
+  expect(leaflet.instance.fitBounds).not.toHaveBeenCalled()
+  await wrapper
+    .findAll('button')
+    .find((button) => button.text() === 'Искать в этой области')!
+    .trigger('click')
+  expect(wrapper.emitted('searchArea')).toEqual([[[59.925, 30.3, 59.95, 30.38]]])
+})
+
+it('после перемещения предлагает поиск, но не запускает его автоматически; показывает загрузку', async () => {
+  const wrapper = mount(PlacePicker, { props: { modelValue: null, places, searchable: true, searchedBounds: [59.925, 30.3, 59.95, 30.38] } })
+  expect(wrapper.text()).not.toContain('Искать в этой области')
+  leaflet.instance.getBounds.mockReturnValue({ getSouth: () => 55.75, getWest: () => 37.6, getNorth: () => 55.77, getEast: () => 37.64 })
+  leaflet.mapHandlers.get('moveend')!()
+  await nextTick()
+  expect(wrapper.emitted('searchArea')).toBeUndefined()
+  const button = wrapper.findAll('button').find(button => button.text() === 'Искать в этой области')!
+  await button.trigger('click')
+  expect(wrapper.emitted('searchArea')).toEqual([[[55.75, 37.6, 55.77, 37.64]]])
+  await wrapper.setProps({ searching: true, searchedBounds: [55.75, 37.6, 55.77, 37.64] })
+  const searching = wrapper.findAll('button').find(button => button.text().includes('Ищем места'))!
+  expect(searching.attributes('disabled')).toBeDefined()
+  expect(searching.attributes('aria-busy')).toBe('true')
+  expect(wrapper.find('.place-picker__spinner').exists()).toBe(true)
+  expect(wrapper.text()).toContain('Обновляем места')
+})
+
+it('показывает компактный выпадающий список с поиском и выбором с клавиатуры', async () => {
+  const { picker, model } = mountPicker()
+  expect(picker.find('.place-picker__panel').exists()).toBe(false)
+  await picker.get('.place-picker__list-toggle').trigger('click')
+  expect(picker.get('.place-picker__panel').attributes('role')).toBe('dialog')
+  expect(picker.findAll('.place-picker__option')).toHaveLength(2)
+  expect(picker.get('.place-picker__list').text()).not.toContain('Невский проспект')
+  await picker.get('input[type="search"]').setValue('кафе')
+  expect(picker.findAll('.place-picker__option')).toHaveLength(1)
+  await picker.get('input').trigger('keydown', { key: 'Enter' })
+  expect(model.value).toEqual(places[1])
+  expect(picker.find('.place-picker__panel').exists()).toBe(false)
+  expect(picker.get('.place-picker__summary').text()).toContain(places[1]!.address)
+})
+
+it('не сбрасывает выбранное место при поиске в другой области', async () => {
+  const wrapper = mount(PlacePicker, { props: { modelValue: places[0]!, places, searchable: true } })
+  await wrapper.setProps({ places: [] })
+  expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+  expect(wrapper.get('.place-picker__summary').text()).toContain(places[0]!.name)
+  expect(wrapper.text()).toContain('Выбранное место сохранено')
+})
+
 async function tileEvent(event: string) {
   leaflet.tileHandlers.get(event)?.()
   await nextTick()
@@ -158,11 +221,16 @@ describe('PlacePicker', () => {
 
   it('позволяет выбрать и сменить место нативными кнопками с доступным состоянием', async () => {
     const { picker, model } = mountPicker(places[0])
-    const buttons = picker.findAll('.place-picker__option')
+    expect(picker.find('.place-picker__panel').exists()).toBe(false)
+    await picker.get('.place-picker__list-toggle').trigger('click')
+    let buttons = picker.findAll('.place-picker__option')
     expect(buttons[0]!.element.tagName).toBe('BUTTON')
     expect(buttons[0]!.attributes('aria-pressed')).toBe('true')
     await buttons[1]!.trigger('click')
     expect(model.value).toEqual(places[1])
+    expect(picker.find('.place-picker__panel').exists()).toBe(false)
+    await picker.get('.place-picker__list-toggle').trigger('click')
+    buttons = picker.findAll('.place-picker__option')
     expect(buttons[0]!.attributes('aria-pressed')).toBe('false')
     expect(buttons[1]!.attributes('aria-pressed')).toBe('true')
     expect(leaflet.circleMarker.mock.results[0]!.value.setStyle).toHaveBeenLastCalledWith(
@@ -176,7 +244,8 @@ describe('PlacePicker', () => {
     options.value = [places[1]!]
     await nextTick()
     expect(model.value).toBeNull()
-    expect(picker.get('.place-picker__summary').text()).toBe('Место не выбрано')
+    expect(picker.get('.place-picker__summary').text()).toContain('Выберите место из списка')
+    await picker.get('.place-picker__list-toggle').trigger('click')
     expect(picker.findAll('.place-picker__option')).toHaveLength(1)
     oldMarkers.forEach((marker) => {
       expect(marker.remove).toHaveBeenCalledOnce()
@@ -190,7 +259,7 @@ describe('PlacePicker', () => {
     expect(model.value).toBeNull()
     options.value = []
     await nextTick()
-    expect(picker.text()).toContain('Нет доступных мест встречи')
+    expect(picker.text()).toContain('не найдено мест этой категории')
   })
 
   it('сохраняет выбор при обновлении списка с тем же id и показывает актуальный адрес', async () => {
@@ -209,6 +278,7 @@ describe('PlacePicker', () => {
     await tileEvent('tileerror')
     await tileEvent('load')
     expect(picker.text()).toContain('Не удалось загрузить карту')
+    await picker.get('.place-picker__list-toggle').trigger('click')
     await picker.get('.place-picker__option').trigger('click')
     expect(model.value).toEqual(places[0])
     await picker.get('.place-picker__retry').trigger('click')

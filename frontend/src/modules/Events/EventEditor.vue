@@ -21,6 +21,7 @@ const emit = defineEmits<{ saved: []; cancel: [] }>()
 const draft = reactive(editDraft(props.event))
 const deadline = reactive(toLocalDateTime(props.event.registrationClosesAt))
 const now = ref(new Date())
+const submitted = ref(false)
 const clock = setInterval(() => {
   now.value = new Date()
 }, 1000)
@@ -50,6 +51,7 @@ const canSave = computed(
     !mutation.isPending.value,
 )
 function submit() {
+  submitted.value = true
   now.value = new Date()
   if (canSave.value) {
     serverError.value = ''
@@ -81,11 +83,6 @@ function digits(field: 'minUsers' | 'maxUsers', event: Event) {
     </label>
     <CategorySelect v-model="draft.category" :categories="categories" />
     <AppField
-      v-model="draft.icon"
-      label="Иконка-эмодзи (пустое поле удаляет иконку)"
-      maxlength="8"
-    />
-    <AppField
       :model-value="draft.minUsers"
       label="Минимум участников"
       inputmode="numeric"
@@ -114,13 +111,16 @@ function digits(field: 'minUsers' | 'maxUsers', event: Event) {
         @update:model-value="changeTime"
       />
     </fieldset>
-    <p v-for="(error, field) in errors" :key="field" class="error" role="status">{{ error }}</p>
+    <p v-for="(error, field) in submitted ? errors : {}" :key="field" class="error" role="status">
+      {{ error }}
+    </p>
     <p v-if="serverError" class="error" role="alert">{{ serverError }}</p>
     <p v-for="(error, field) in details" :key="field" class="error">{{ error }}</p>
     <div class="actions">
-      <AppButton type="submit" :disabled="!canSave">{{
-        mutation.isPending.value ? 'Сохраняем…' : 'Сохранить'
-      }}</AppButton
+      <AppButton
+        type="submit"
+        :disabled="mutation.isPending.value || !availableActions(event, now).canEdit"
+        >{{ mutation.isPending.value ? 'Сохраняем…' : 'Сохранить' }}</AppButton
       ><AppButton variant="secondary" :disabled="mutation.isPending.value" @click="emit('cancel')"
         >Отмена</AppButton
       >

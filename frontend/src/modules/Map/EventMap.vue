@@ -12,7 +12,10 @@ import 'leaflet/dist/leaflet.css'
 import AppButton from '@/common/ui/AppButton.vue'
 import type { EventMapPoint } from './types'
 
-const props = defineProps<{ points: readonly EventMapPoint[] }>()
+const props = withDefaults(
+  defineProps<{ points: readonly EventMapPoint[]; selectable?: boolean; label?: string }>(),
+  { selectable: true, label: 'События на карте' },
+)
 const emit = defineEmits<{ select: [id: string] }>()
 const points = computed(() =>
   props.points.filter(
@@ -33,6 +36,11 @@ let markers: CircleMarker[] = []
 let observer: ResizeObserver | undefined
 let frame: number | undefined
 let failed = false
+let fittedGeometry = ''
+const geometry = computed(() =>
+  JSON.stringify(points.value.map((point) => [point.id, point.latitude, point.longitude]).sort()),
+)
+const content = computed(() => JSON.stringify(points.value))
 function loading() {
   failed = false
   status.value = 'loading'
@@ -65,10 +73,23 @@ function clear() {
   })
   markers = []
 }
+function showAll() {
+  if (!points.value.length) return
+  instance?.fitBounds(
+    points.value.map((point) => [point.latitude!, point.longitude!] as [number, number]),
+    { padding: [24, 24], maxZoom: 14 },
+  )
+}
 function render() {
   if (!instance) return
   clear()
+  const groups = new Map<string, EventMapPoint[]>()
   points.value.forEach((point) => {
+    const key = `${point.latitude},${point.longitude}`
+    groups.set(key, [...(groups.get(key) ?? []), point])
+  })
+  groups.forEach((group) => {
+    const point = group[0]!
     const marker = circleMarker([point.latitude!, point.longitude!], {
       radius: 10,
       color: '#292657',
@@ -76,19 +97,43 @@ function render() {
       fillOpacity: 1,
       weight: 3,
     })
-    marker.on('click', () => emit('select', point.id)).addTo(instance!)
+    const label = document.createElement('span')
+    label.textContent = group.length > 1 ? String(group.length) : point.title
+    marker.bindTooltip(label, {
+      permanent: group.length > 1,
+      direction: group.length > 1 ? 'center' : 'top',
+      className: group.length > 1 ? 'event-map-count' : '',
+    })
+    if (props.selectable && group.length > 1) {
+      const list = document.createElement('div')
+      list.className = 'event-map-popup__list'
+      const content = document.createElement('div')
+      const heading = document.createElement('p')
+      heading.className = 'event-map-popup__heading'
+      heading.textContent = `События в этом месте · ${group.length}`
+      content.append(heading, list)
+      group.forEach((event) => {
+        const button = document.createElement('button')
+        button.type = 'button'
+        button.textContent = event.title
+        button.className = 'event-map-popup__event'
+        button.addEventListener('click', () => emit('select', event.id))
+        list.append(button)
+      })
+      marker.bindPopup(content, { className: 'event-map-popup', minWidth: 220, maxWidth: 300 })
+    } else if (props.selectable) marker.on('click', () => emit('select', point.id))
+    marker.addTo(instance!)
     markers.push(marker)
   })
-  if (points.value.length)
-    instance.fitBounds(
-      points.value.map((point) => [point.latitude!, point.longitude!] as [number, number]),
-      { padding: [24, 24], maxZoom: 14 },
-    )
+  if (geometry.value !== fittedGeometry) {
+    showAll()
+    fittedGeometry = geometry.value
+  }
 }
-watch(points, render)
+watch(content, render)
 onMounted(() => {
   if (!container.value) return
-  instance = map(container.value, { scrollWheelZoom: false }).setView([59.9343, 30.3351], 11)
+  instance = map(container.value, { scrollWheelZoom: true }).setView([59.9343, 30.3351], 11)
   instance.attributionControl.setPrefix(false)
   tiles = tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -116,20 +161,27 @@ onBeforeUnmount(() => {
 })
 </script>
 <template>
-  <section class="event-map" aria-label="События на карте">
-    <div
-      ref="container"
-      class="map"
-      aria-label="Карта отфильтрованных событий"
-      :aria-busy="status === 'loading'"
-    />
+  <section class="event-map" :aria-label="label">
+    <div ref="container" class="map" :aria-label="label" :aria-busy="status === 'loading'" />
     <p v-if="status === 'loading'" role="status">Загружаем карту…</p>
     <div v-if="status === 'error'" class="map-fallback" role="status">
       <p>Не удалось загрузить карту. Список событий доступен ниже.</p>
       <AppButton size="sm" variant="secondary" @click="retry">Повторить</AppButton>
     </div>
     <p v-if="!points.length">У найденных событий нет координат для отображения на карте.</p>
-    <ul v-else class="map-list">
+    <p v-else-if="props.points.length > points.length">
+      На карте {{ points.length }} из {{ props.points.length }} событий. У остальных не указаны
+      корректные координаты.
+    </p>
+    <AppButton
+      v-if="points.length"
+      size="sm"
+      variant="secondary"
+      class="show-all"
+      @click="showAll"
+      >{{ selectable ? 'Показать все события' : 'Показать место' }}</AppButton
+    >
+    <ul v-if="selectable && points.length" class="map-list">
       <li v-for="point in points" :key="point.id">
         <button type="button" @click="emit('select', point.id)">{{ point.title }}</button>
       </li>
@@ -137,6 +189,26 @@ onBeforeUnmount(() => {
   </section>
 </template>
 <style scoped>
+:global(.event-map-popup .leaflet-popup-content-wrapper) {
+  border: 1px solid var(--color-border, #dcc8ee);
+  border-radius: 16px;
+  background: var(--color-surface, #fff);
+  box-shadow: 0 8px 28px #29265726;
+}
+:global(.event-map-popup .leaflet-popup-content) { margin: 16px; font-family: inherit; }
+:global(.event-map-popup .event-map-popup__heading) { margin: 0 24px 12px 0; color: var(--color-text-subtle, #47456d); font-size: 11px; font-weight: 800; line-height: 1.5; }
+:global(.event-map-popup__list) { display: grid; gap: 6px; max-height: 240px; overflow-y: auto; overscroll-behavior: contain; }
+:global(.event-map-popup__event) { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; border: 0; border-radius: 10px; padding: 11px 12px; color: var(--color-text, #292657); background: var(--color-blue-soft, #f0f1ff); text-align: left; font-family: inherit; font-size: 13px; font-weight: 800; line-height: 1.4; cursor: pointer; }
+:global(.event-map-popup__event::after) { content: '›'; color: var(--color-blue, #6861b1); font-size: 20px; font-weight: 500; }
+:global(.event-map-popup__event:hover) { background: #fbd5e6; }
+:global(.event-map-popup__event:focus-visible) { outline: 2px solid var(--color-blue, #6861b1); outline-offset: -2px; }
+:global(.event-map-popup .leaflet-popup-close-button) { top: 8px; right: 8px; width: 28px; height: 28px; border-radius: 8px; color: var(--color-text-subtle, #47456d); font: 22px/28px sans-serif; }
+:global(.event-map-popup .leaflet-popup-close-button:hover) { background: var(--color-blue-soft, #f0f1ff); color: var(--color-text, #292657); }
+:global(.event-map-popup .leaflet-popup-tip) { background: var(--color-surface, #fff); }
+:global(.event-map-count.leaflet-tooltip) { border: 0; border-radius: 50%; width: 22px; height: 22px; padding: 0; background: #292657; color: #fff; font: 800 12px/22px sans-serif; text-align: center; box-shadow: 0 2px 8px #29265733; }
+.show-all {
+  margin-top: 12px;
+}
 .map {
   height: 360px;
   border: 1px solid var(--color-border);
