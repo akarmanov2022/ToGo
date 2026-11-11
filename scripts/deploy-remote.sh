@@ -43,7 +43,7 @@ tar -C "$root" -czf - infra/docker-compose.prod.yml infra/nginx infra/monitoring
 
 {
     printf '%s\n' "$DOCKERHUB_TOKEN"
-    printf '%s\n' "$GRAFANA_USER"
-    printf '%s\n' "$GRAFANA_PASSWORD"
+    printf '%s\n' "${GRAFANA_USER:-}"
+    printf '%s\n' "${GRAFANA_PASSWORD:-}"
 } | SSHPASS="$ROOT_PASSWORD" "${ssh_command[@]}" "$destination" \
     "bash '$release_dir/scripts/deploy.sh' '$TOGO_RELEASE_SHA' '$DEPLOY_PATH' '$DOCKERHUB_USERNAME'"
