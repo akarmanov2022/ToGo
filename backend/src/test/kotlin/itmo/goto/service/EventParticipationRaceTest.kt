@@ -28,7 +28,12 @@ import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
 @DataJpaTest(showSql = false)
-@Import(PostgresConfiguration::class, EventParticipationService::class, EventDeadlineService::class)
+@Import(
+    PostgresConfiguration::class,
+    EventParticipationService::class,
+    EventDeadlineService::class,
+    NotificationQueue::class,
+)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class EventParticipationRaceTest(
     @Autowired private val participation: EventParticipationService,

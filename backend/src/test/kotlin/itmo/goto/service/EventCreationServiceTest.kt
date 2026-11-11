@@ -14,6 +14,7 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager
 import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.core.queryForList
 import org.springframework.test.context.bean.override.convention.TestBean
 import java.time.Clock
 import java.time.Duration
@@ -24,7 +25,7 @@ import java.util.UUID
 import kotlin.random.Random
 
 @DataJpaTest(showSql = false)
-@Import(PostgresConfiguration::class, EventCreationService::class)
+@Import(PostgresConfiguration::class, EventCreationService::class, NotificationQueue::class)
 class EventCreationServiceTest(
     @Autowired private val creation: EventCreationService,
     @Autowired private val jdbc: JdbcTemplate,
@@ -35,6 +36,16 @@ class EventCreationServiceTest(
 
     @TestBean
     private lateinit var clock: Clock
+
+    @Test
+    fun `creation schedules only future reminders`() {
+        holder()
+        val event = creation.event(request(now.plus(Duration.ofHours(1)), now.plus(Duration.ofHours(5)))).id
+        entities.flush()
+        assertThat(jdbc.queryForList<String>("SELECT kind FROM notifications WHERE event_id = ?", event))
+            .withFailMessage("Creation did not schedule only the future hour reminder")
+            .containsExactly("reminder_hour")
+    }
 
     @Test
     fun `created event is organized by the creator`() {

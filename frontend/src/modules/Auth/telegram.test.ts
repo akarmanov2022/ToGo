@@ -1,6 +1,9 @@
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { getTelegramInitData, requestTelegramWriteAccess } from './telegram'
+
+beforeEach(() => sessionStorage.clear())
 afterEach(() => vi.unstubAllGlobals())
+
 it('передаёт исходную строку initData без пересборки и подготавливает Mini App', () => {
   const ready = vi.fn(),
     expand = vi.fn()
@@ -11,19 +14,44 @@ it('передаёт исходную строку initData без пересб�
   expect(ready).toHaveBeenCalledOnce()
   expect(expand).toHaveBeenCalledOnce()
 })
-it('спрашивает разрешение сообщений и допускает отказ без ошибки авторизации', async () => {
+
+it('спрашивает разрешение сообщений один раз за сессию и допускает отказ', async () => {
   const request = vi.fn((callback: (granted: boolean) => void) => callback(false))
   vi.stubGlobal('Telegram', { WebApp: { initData: 'signed-data', requestWriteAccess: request } })
   await expect(requestTelegramWriteAccess()).resolves.toBe(false)
+  await expect(requestTelegramWriteAccess()).resolves.toBeNull()
   expect(request).toHaveBeenCalledOnce()
 })
-it('не вызывает Telegram API в обычном браузере или старом клиенте', async () => {
-  vi.stubGlobal('Telegram', undefined)
-  await expect(requestTelegramWriteAccess()).resolves.toBeNull()
+
+it('не вызывает Telegram API без initData или в старом клиенте', async () => {
   const request = vi.fn()
+  vi.stubGlobal('Telegram', { WebApp: { initData: '', requestWriteAccess: request } })
+  await expect(requestTelegramWriteAccess()).resolves.toBeNull()
   vi.stubGlobal('Telegram', {
     WebApp: { initData: 'signed-data', requestWriteAccess: request, isVersionAtLeast: () => false },
   })
   await expect(requestTelegramWriteAccess()).resolves.toBeNull()
   expect(request).not.toHaveBeenCalled()
+})
+
+it('не спрашивает разрешение повторно, если Telegram уже разрешил сообщения', async () => {
+  const request = vi.fn()
+  vi.stubGlobal('Telegram', {
+    WebApp: {
+      initData: 'signed-data',
+      requestWriteAccess: request,
+      initDataUnsafe: { user: { allows_write_to_pm: true } },
+    },
+  })
+  await expect(requestTelegramWriteAccess()).resolves.toBe(true)
+  expect(request).not.toHaveBeenCalled()
+})
+
+it('сбой запроса разрешения не мешает открытию приложения', async () => {
+  const request = vi.fn(() => {
+    throw new Error('Telegram API unavailable')
+  })
+  vi.stubGlobal('Telegram', { WebApp: { initData: 'signed-data', requestWriteAccess: request } })
+  await expect(requestTelegramWriteAccess()).resolves.toBeNull()
+  expect(request).toHaveBeenCalledOnce()
 })

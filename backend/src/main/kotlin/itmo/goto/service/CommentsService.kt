@@ -9,7 +9,6 @@ import itmo.goto.model.Comment
 import itmo.goto.repository.CommentRepository
 import itmo.goto.repository.EventRepository
 import itmo.goto.repository.ParticipationRepository
-import itmo.goto.repository.UserRepository
 import itmo.goto.web.ApiFailure
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -24,9 +23,9 @@ class CommentsService(
     private val comments: CommentRepository,
     private val events: EventRepository,
     private val participations: ParticipationRepository,
-    private val users: UserRepository,
     private val identity: Identity,
     private val clock: Clock,
+    private val notifications: NotificationQueue,
 ) : CommentsApiService {
     @Transactional(readOnly = true)
     override fun getEventComments(eventId: UUID, limit: Int, offset: Int): CommentPage {
@@ -46,12 +45,11 @@ class CommentsService(
         val event = events.findById(eventId).orElseThrow {
             ApiFailure(ApiError.Code.EVENT_NOT_FOUND, "Событие не найдено")
         }
-        if (!participations.existsByEventIdAndUserId(eventId, identity.user())) {
-            throw ApiFailure(ApiError.Code.FORBIDDEN, "Комментировать могут только участники события")
-        }
-        val author = users.findById(identity.user()).orElseThrow {
-            ApiFailure(ApiError.Code.UNAUTHORIZED, "Учётная запись не найдена, войдите заново")
-        }
-        return comments.save(Comment(event, author, createCommentRequest.text, clock.instant())).note()
+        val author = participations.member(eventId, identity.user())
+            ?: throw ApiFailure(ApiError.Code.FORBIDDEN, "Комментировать могут только участники события")
+        val now = clock.instant()
+        val comment = comments.saveAndFlush(Comment(event, author, createCommentRequest.text, now))
+        notifications.comment(event, identity.user(), checkNotNull(comment.id), now)
+        return comment.note()
     }
 }

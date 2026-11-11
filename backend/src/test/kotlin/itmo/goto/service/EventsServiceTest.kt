@@ -35,6 +35,7 @@ import kotlin.random.Random
     EventParticipationService::class,
     EventDiscoveryService::class,
     EventDeadlineService::class,
+    NotificationQueue::class,
 )
 class EventsServiceTest(@Autowired private val service: EventsService, @Autowired private val jdbc: JdbcTemplate) {
     @TestBean

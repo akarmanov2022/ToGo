@@ -31,6 +31,8 @@ export function requestTelegramWriteAccess(): Promise<boolean | null> {
   )
     return Promise.resolve(null)
   if (app.initDataUnsafe?.user?.allows_write_to_pm) return Promise.resolve(true)
+  if (sessionStorage.getItem('togo-write-access-requested')) return Promise.resolve(null)
+  sessionStorage.setItem('togo-write-access-requested', '1')
   return new Promise((resolve) => {
     try {
       app.requestWriteAccess!((granted) => resolve(granted))

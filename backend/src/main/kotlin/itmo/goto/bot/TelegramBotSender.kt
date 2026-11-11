@@ -5,12 +5,15 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
+import java.util.UUID
 
-/** Sends the one welcome message supported by the bot. */
+/** Sends welcome and event notifications through Telegram. */
 interface BotSender {
     fun welcome(chatId: Long)
 
     fun message(chatId: Long, text: String)
+
+    fun comment(chatId: Long, text: String, eventId: UUID)
 }
 
 class BotBlocked : RuntimeException()
@@ -55,6 +58,28 @@ class TelegramBotSender(
             throw BotUnavailable()
         } catch (_: RestClientException) {
             // Exception messages may contain the bot token in the request URL.
+            throw BotUnavailable()
+        }
+    }
+
+    override fun comment(chatId: Long, text: String, eventId: UUID) {
+        val url = "${appUrl.trimEnd('/')}/events/$eventId#comments"
+        try {
+            client.post().uri("/sendMessage").body(
+                mapOf(
+                    "chat_id" to chatId,
+                    "text" to text,
+                    "reply_markup" to mapOf(
+                        "inline_keyboard" to listOf(
+                            listOf(mapOf("text" to "Открыть комментарии", "web_app" to mapOf("url" to url))),
+                        ),
+                    ),
+                ),
+            ).retrieve().toBodilessEntity()
+        } catch (error: org.springframework.web.client.RestClientResponseException) {
+            if (error.statusCode == HttpStatus.FORBIDDEN) throw BotBlocked()
+            throw BotUnavailable()
+        } catch (_: RestClientException) {
             throw BotUnavailable()
         }
     }

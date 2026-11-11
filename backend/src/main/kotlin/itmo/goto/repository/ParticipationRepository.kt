@@ -14,6 +14,12 @@ interface ParticipationRepository : JpaRepository<Participation, UUID> {
 
     fun countByEventId(event: UUID): Long
 
+    @Query("SELECT p.user FROM Participation p WHERE p.event.id = ?1")
+    fun allMembers(event: UUID): List<User>
+
+    @Query("SELECT p.user FROM Participation p WHERE p.event.id = ?1 AND p.user.id = ?2")
+    fun member(event: UUID, user: UUID): User?
+
     @Query("SELECT p.user FROM Participation p WHERE p.event.id = ?1 ORDER BY p.user.id LIMIT ?2 OFFSET ?3")
     fun members(event: UUID, limit: Int, offset: Int): List<User>
 
