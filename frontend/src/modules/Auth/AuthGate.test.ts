@@ -26,14 +26,16 @@ describe('Auth gate', () => {
     expect(wrapper.text()).toContain('Откройте ToGo в Telegram')
     expect(wrapper.text()).not.toContain('protected-content')
     expect(wrapper.find('form').exists()).toBe(false)
+    expect(wrapper.get('a').attributes('href')).toBe('https://t.me/togo_devdays_bot')
   })
-  it('shows protected content after login without a demo banner', () => {
+  it('shows protected content instead of the demo login screen after login', () => {
     useAuthStore().status = 'authenticated'
     const wrapper = mount(AuthGate, {
       props: { mockMode: true },
       slots: { default: 'protected-content' },
     })
     expect(wrapper.text()).toContain('protected-content')
+    expect(wrapper.text()).not.toContain('Войти в демо')
     expect(wrapper.text()).not.toContain('Демо-режим MSW')
   })
   it('offers reopen instead of retry on expired session', () => {
@@ -41,5 +43,16 @@ describe('Auth gate', () => {
     const wrapper = mount(AuthGate, { props: { mockMode: false } })
     expect(wrapper.text()).toContain('откройте заново')
     expect(wrapper.find('button').exists()).toBe(false)
+  })
+
+  it('показывает компактную автоматическую загрузку без кнопок входа и регистрации', () => {
+    useAuthStore().status = 'loading'
+    const wrapper = mount(AuthGate, { props: { mockMode: false } })
+    expect(wrapper.get('main').classes()).toContain('login--compact')
+    expect(wrapper.text()).toContain('Открываем ToGo')
+    expect(wrapper.text()).toContain('Вход и регистрация происходят автоматически')
+    expect(wrapper.find('button').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Войти в демо')
+    expect(wrapper.text()).not.toContain('Зарегистрироваться')
   })
 })

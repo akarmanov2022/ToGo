@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AppCard from '@/common/ui/AppCard.vue'
+import type { components } from '@/common/api/schema'
 
 defineProps<{
   title: string
@@ -9,12 +10,14 @@ defineProps<{
   accent?: boolean
   to?: string
   state?: string
+  organizer?: components['schemas']['UserSummary']
+  icon?: string | null
 }>()
 </script>
 <template>
   <AppCard as="article" :accent="accent" class="event-card">
     <RouterLink v-if="to" class="hit" :to="to" :aria-label="title" />
-    <div :class="['icon', { pink }]" />
+    <div :class="['icon', { pink }]" aria-hidden="true">{{ icon }}</div>
     <div class="info">
       <div class="title-row">
         <h2>{{ title }}</h2>
@@ -22,6 +25,10 @@ defineProps<{
       </div>
       <p>{{ meta }}</p>
       <p>{{ place }}</p>
+      <RouterLink v-if="organizer" class="organizer" :to="`/users/${organizer.id}`"
+        >Организатор:
+        {{ organizer.tgLogin ? `@${organizer.tgLogin}` : 'профиль участника' }}</RouterLink
+      >
     </div>
     <div v-if="$slots.default" class="action"><slot /></div>
   </AppCard>
@@ -40,6 +47,9 @@ defineProps<{
   border-radius: inherit;
 }
 .icon {
+  display: grid;
+  place-items: center;
+  font-size: 25px;
   width: 44px;
   height: 44px;
   flex: none;
@@ -77,6 +87,18 @@ p {
   position: relative;
   z-index: 2;
   margin-top: 8px;
+}
+.organizer {
+  display: inline-block;
+  position: relative;
+  z-index: 2;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-blue);
+}
+.organizer:hover {
+  text-decoration: underline;
 }
 @media (max-width: 700px) {
   .event-card {

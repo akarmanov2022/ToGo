@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { circleMarker, map, tileLayer, type CircleMarker, type Map, type TileLayer } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import AppButton from '@/common/ui/AppButton.vue'
 import type { Coordinates } from './types'
 import { wrapLongitude } from './coordinates'
 
@@ -141,12 +142,12 @@ onBeforeUnmount(() => {
     <p v-if="tileStatus === 'loading'" class="location-picker__hint" role="status">
       Загружаем карту…
     </p>
-    <p v-else-if="tileStatus === 'error'" class="location-picker__hint" role="status">
-      Не удалось загрузить карту. Можно продолжить без точки.
-      <button type="button" class="location-picker__retry" @click="retryTiles">
+    <div v-else-if="tileStatus === 'error'" class="location-picker__error" role="status">
+      <p class="location-picker__hint">Не удалось загрузить карту. Можно продолжить без точки.</p>
+      <AppButton class="location-picker__retry" size="sm" variant="secondary" @click="retryTiles">
         Повторить загрузку
-      </button>
-    </p>
+      </AppButton>
+    </div>
     <div class="location-picker__summary" role="status">
       <span class="location-picker__icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true">
@@ -192,16 +193,11 @@ onBeforeUnmount(() => {
   font-size: 12px;
   font-weight: 800;
 }
-.location-picker__retry {
-  margin-left: 8px;
-  padding: 6px 0;
-  border: 0;
-  background: transparent;
-  color: #a63872;
-  font: inherit;
-  font-weight: 800;
-  text-decoration: underline;
-  cursor: pointer;
+.location-picker__error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
 }
 .location-picker__map {
   height: 280px;

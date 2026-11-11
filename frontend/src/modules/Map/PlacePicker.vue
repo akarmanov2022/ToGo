@@ -9,6 +9,7 @@ import {
   type TileLayer,
 } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import AppButton from '@/common/ui/AppButton.vue'
 import type { MeetingPlace } from './types'
 
 const props = defineProps<{ modelValue: MeetingPlace | null; places: MeetingPlace[] }>()
@@ -177,12 +178,12 @@ onBeforeUnmount(() => {
       :aria-busy="tileStatus === 'loading'"
     />
     <p v-if="tileStatus === 'loading'" class="place-picker__hint" role="status">Загружаем карту…</p>
-    <p v-else-if="tileStatus === 'error'" class="place-picker__hint" role="status">
-      Не удалось загрузить карту. Выберите место в списке ниже.
-      <button type="button" class="place-picker__retry" @click="retryTiles">
+    <div v-else-if="tileStatus === 'error'" class="place-picker__error" role="status">
+      <p class="place-picker__hint">Не удалось загрузить карту. Выберите место в списке ниже.</p>
+      <AppButton class="place-picker__retry" size="sm" variant="secondary" @click="retryTiles">
         Повторить загрузку
-      </button>
-    </p>
+      </AppButton>
+    </div>
     <div class="place-picker__summary" role="status">
       <template v-if="selected">
         <strong>{{ selected.name }}</strong>
@@ -260,18 +261,14 @@ onBeforeUnmount(() => {
   border-color: #a63872;
   background: #fbd5e6;
 }
-.place-picker__option:focus-visible,
-.place-picker__retry:focus-visible {
+.place-picker__option:focus-visible {
   outline: 3px solid #292657;
   outline-offset: 2px;
 }
-.place-picker__retry {
-  border: 0;
-  background: transparent;
-  color: #a63872;
-  font: inherit;
-  font-weight: 800;
-  text-decoration: underline;
-  cursor: pointer;
+.place-picker__error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
 }
 </style>

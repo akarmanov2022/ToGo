@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { components } from '@/common/api/schema'
-import { cardAction, isVisibleInFeed, stateLabel } from './actions'
+import { cardAction, isVisibleInFeed } from './actions'
+import { stateLabel } from './rules'
 
 type Event = components['schemas']['Event']
 
@@ -63,7 +64,7 @@ describe('cardAction', () => {
     expect(cardAction(fixture({}), now)).toEqual({ kind: 'join', label: 'Присоединиться' })
     expect(cardAction(fixture({ availableSlots: 0 }), now)).toEqual({
       kind: 'unavailable',
-      label: 'Забито',
+      label: 'Присоединиться',
     })
   })
 
