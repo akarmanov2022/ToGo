@@ -43,7 +43,6 @@ export const otherUser: UserProfile = {
   organizerRating: { average: 0, count: 0 },
 }
 
-/** Dates are relative to reset time so the local demo does not expire on disk. */
 export function createEventFixtures(now = Date.now()): Event[] {
   const date = (hours: number) => new Date(now + hours * 3_600_000).toISOString()
   const base: Event = {

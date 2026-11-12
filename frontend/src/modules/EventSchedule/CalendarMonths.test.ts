@@ -18,7 +18,6 @@ it('листает месяцы в пределах min/max и блокируе�
   await next.trigger('click')
   expect(wrapper.get('.calendar-header strong').text()).toContain('декабрь')
   expect(prev.attributes('disabled')).toBeUndefined()
-  // январь выходит за max, поэтому в декабре стрелка вперёд недоступна
   expect(next.attributes('disabled')).toBeDefined()
   await next.trigger('click')
   expect(wrapper.get('.calendar-header strong').text()).toContain('декабрь')
@@ -40,7 +39,6 @@ it('не закрывает поповер, когда вебвью теряет
   await toggle.trigger('click')
   ;(toggle.element as HTMLElement).focus()
   const next = wrapper.findAll('.calendar-header button')[1]
-  // мобильный вебвью: тап по кнопке не передаёт ей фокус, focusout уходит с relatedTarget = null
   next.element.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }))
   await nextTick()
   expect(wrapper.find('.calendar-panel').exists()).toBe(true)

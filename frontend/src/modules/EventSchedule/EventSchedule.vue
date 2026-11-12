@@ -66,10 +66,6 @@ const startDay = computed(() => draft.startsAt.date)
 const errors = computed(() => validateSchedule(props.modelValue, currentTime.value))
 watch(errors, (value) => emit('validation', value), { immediate: true })
 
-/**
- * Границы календаря повторяют валидацию: даты, которые её не проходят,
- * в календаре серые и некликабельные, а не только текст ошибки.
- */
 function calendarBounds(field: ScheduleField): { min: string; max?: string } {
   if (field === 'startsAt')
     return { min: localDate(earliestEventStart(currentTime.value)), max: maximum.value }

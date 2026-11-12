@@ -44,6 +44,15 @@ const categoryNames = computed(
 
 const profile = profileQuery.data
 const rating = computed(() => (profile.value?.organizerRating?.average ?? 0).toFixed(1))
+const hasRatings = computed(() => (profile.value?.organizerRating?.count ?? 0) > 0)
+const ratingCaption = computed(() => {
+  const count = profile.value?.organizerRating?.count ?? 0
+  if (!count) return 'Пока нет оценок'
+  const last = count % 10
+  const lastTwo = count % 100
+  const word = last === 1 && lastTwo !== 11 ? 'оценки' : 'оценок'
+  return `На основе ${count} ${word}`
+})
 
 const editing = ref(false)
 const name = ref('')
@@ -69,10 +78,8 @@ async function saveProfile() {
     const saved = await updateCurrentUser({
       name: name.value.trim(),
       city: city.value.trim() ? city.value.trim() : null,
-      // Поле пока обязательно в PUT-контракте, но больше не редактируется в UI.
       categories: [...profile.value.categories],
     })
-    // Поздний ответ старой сессии не должен восстанавливать очищенный приватный кеш.
     if (auth.status !== 'authenticated' || auth.user?.id !== saved.id) return
     queryClient.setQueryData(currentUserKey(saved.id), saved)
     editing.value = false
@@ -174,12 +181,29 @@ function reloadProfile() {
           :alt="profile.name"
         />
         <div v-else class="avatar">{{ avatarLetter(profile.name) }}</div>
-        <div class="organizer-rating" :aria-label="`Рейтинг организатора: ${rating} из 5`">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8-6.2-3.2-6.2 3.2L7 14.2 2 9.3l6.9-1Z" />
-          </svg>
-          <strong>{{ rating }}</strong
-          ><span>из 5</span>
+        <div class="rating-summary">
+          <div
+            class="organizer-rating"
+            :class="{ 'organizer-rating--empty': !hasRatings }"
+            :aria-label="
+              hasRatings
+                ? `Рейтинг организатора: ${rating}`
+                : 'Рейтинг организатора: пока нет оценок'
+            "
+          >
+            <span class="rating-stars" aria-hidden="true">
+              <svg
+                v-for="star in 5"
+                :key="star"
+                :class="{ filled: star <= Math.floor(Number(rating)) }"
+                viewBox="0 0 24 24"
+              >
+                <path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8-6.2-3.2-6.2 3.2L7 14.2 2 9.3l6.9-1Z" />
+              </svg>
+            </span>
+            <strong>{{ rating }}</strong>
+          </div>
+          <p class="rating-caption" :class="{ 'rating-empty': !hasRatings }">{{ ratingCaption }}</p>
         </div>
         <h2>{{ profile.name }}</h2>
         <p v-if="profile.tgLogin">@{{ profile.tgLogin }}</p>
@@ -273,20 +297,41 @@ function reloadProfile() {
 .organizer-rating {
   display: flex;
   align-items: center;
-  gap: 6px;
-  border-radius: 20px;
-  padding: 6px 12px;
-  background: #fff3d6;
-  color: #725014;
-  font-size: 13px;
+  gap: 12px;
+  color: var(--color-text);
+}
+.organizer-rating strong {
+  font-size: 30px;
+  line-height: 1.2;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+.rating-stars {
+  display: flex;
+  gap: 3px;
+}
+.rating-summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.organizer-rating--empty {
+  color: var(--color-text-subtle);
+}
+.rating-caption {
+  color: var(--color-text-subtle);
 }
 .organizer-rating svg {
-  width: 18px;
-  height: 18px;
-  fill: #e5a827;
+  width: 27px;
+  height: 27px;
+  fill: none;
+  stroke: #df82b0;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
 }
-.organizer-rating span {
-  font-size: 11px;
+.organizer-rating svg.filled {
+  fill: #df82b0;
 }
 .events-heading {
   margin: 18px 0 12px;

@@ -14,7 +14,6 @@ const y = Math.floor(
   ((1 - Math.asinh(Math.tan((59.9343 * Math.PI) / 180)) / Math.PI) / 2) * 2 ** 14,
 )
 
-// Настоящий protobuf/MVT, а не мок декодера: библиотеки должны извлечь Point, теги и координаты.
 function tileBytes(subclass: string) {
   const pbf = new Pbf()
   pbf.writeMessage(
@@ -88,7 +87,7 @@ it('получает реальные бинарные POI-тайлы без а�
   expect(places).toHaveLength(1)
   const requests = fetch.mock.calls.length
   await expect(fetchVectorPlaces('PICNIC')).resolves.toEqual([])
-  expect(fetch.mock.calls.length).toBe(requests + 1) // повторяется только кешируемый TileJSON
+  expect(fetch.mock.calls.length).toBe(requests + 1)
   for (const call of vi.mocked(globalThis.fetch).mock.calls) {
     expect(call[1]).toMatchObject({ credentials: 'omit' })
     expect(call[1]?.headers).toBeUndefined()

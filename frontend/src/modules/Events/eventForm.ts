@@ -36,7 +36,6 @@ function participantCount(value: string | number): number {
   return Number(value)
 }
 
-/** Общие правила полей создания и редактирования. Сроки проверяются отдельно. */
 export function validateEventFields(
   form: EventFields,
   options: { original?: Pick<EventFields, 'title' | 'icon'>; participantsCount?: number } = {},

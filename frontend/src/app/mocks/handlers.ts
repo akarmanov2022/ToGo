@@ -22,10 +22,6 @@ type Body<P extends keyof paths, M extends Method> =
 type Reply<P extends keyof paths, M extends Method> =
   Operation<P, M> extends { responses: infer R } ? Json<R[keyof R]> : never
 
-// Deliberately local-only: no Telegram signature checks, token expiry, persistence,
-// background jobs, database transactions or cross-tab concurrency simulation.
-// Validation covers contract fields and common domain failures, not a replacement
-// for a production JSON-schema validator (e.g. exhaustive RFC3339 calendar rules).
 let user: Schema['CurrentUser']
 let events: Event[]
 let participants: Map<string, string[]>
@@ -78,7 +74,6 @@ function endpoint<P extends keyof paths, M extends Method>(
         return await resolve(request, params)
       } catch (error) {
         if (!(error instanceof MockError)) throw error
-        // Every operation declares ApiError; the conditional generic cannot infer this.
         return HttpResponse.json(error.payload as Reply<P, M>, {
           status: error.status,
           headers:

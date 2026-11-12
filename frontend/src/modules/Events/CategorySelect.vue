@@ -46,7 +46,6 @@ function choose(code: string) {
   close()
 }
 function leave(event: FocusEvent) {
-  // relatedTarget = null — тап в мобильном вебвью без передачи фокуса: не закрываем
   if (event.relatedTarget === null) return
   if (!root.value?.contains(event.relatedTarget as Node)) open.value = false
 }

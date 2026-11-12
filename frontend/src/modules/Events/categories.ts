@@ -1,6 +1,5 @@
 import type { components } from '@/common/api/schema'
 
-/** Резервный справочник из контракта; при доступном API используется ответ сервера. */
 export const eventCategories = [
   { code: 'PICNIC', name: 'Пикник' },
   { code: 'RUN', name: 'Пробежка' },

@@ -3,7 +3,6 @@ import type { Coordinates } from './types'
 
 type CoordinateFields = Pick<components['schemas']['CreateEventRequest'], 'latitude' | 'longitude'>
 
-/** Both coordinate fields are sent together; an absent point is omitted, not serialized as null. */
 export function toCoordinateFields(point: Coordinates | null): CoordinateFields {
   if (!point) return {}
   if (

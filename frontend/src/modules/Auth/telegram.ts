@@ -21,7 +21,6 @@ export function getTelegramInitData(): string {
   return app.initData
 }
 
-/** Разрешение сообщений — не способ входа и не влияет на успех авторизации. */
 export function requestTelegramWriteAccess(): Promise<boolean | null> {
   const app = window.Telegram?.WebApp
   if (

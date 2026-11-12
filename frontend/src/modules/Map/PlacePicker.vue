@@ -139,7 +139,6 @@ function startLoading() {
 }
 
 function finishLoading() {
-  // Leaflet emits load even after partial tile failures.
   tileStatus.value = failedInCycle ? 'error' : 'ready'
 }
 
