@@ -28,6 +28,7 @@ export const currentUser: CurrentUser = {
   categories: ['BOARD_GAMES'],
   createdEventsCount: 1,
   visitedEventsCount: 0,
+  organizerRating: { average: 0, count: 0 },
 }
 
 export const otherUser: UserProfile = {
@@ -39,6 +40,7 @@ export const otherUser: UserProfile = {
   categories: ['EXCURSION'],
   createdEventsCount: 2,
   visitedEventsCount: 1,
+  organizerRating: { average: 0, count: 0 },
 }
 
 /** Dates are relative to reset time so the local demo does not expire on disk. */

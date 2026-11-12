@@ -105,6 +105,16 @@ const events = computed(() =>
 )
 const actionError = ref('')
 const confirmingId = ref<string | null>(null)
+const pendingIds = ref(new Set<string>())
+function startAction(id: string) {
+  pendingIds.value.add(id)
+}
+function finishAction(_data: unknown, _error: unknown, id: string) {
+  pendingIds.value.delete(id)
+}
+function busy(id: string) {
+  return pendingIds.value.has(id)
+}
 function report(error: unknown, fallback: string) {
   actionError.value = error instanceof ApiError ? error.message : fallback
 }
@@ -116,24 +126,30 @@ async function refreshEvents() {
 }
 const join = useMutation({
   mutationFn: joinEvent,
+  onMutate: startAction,
+  onSettled: finishAction,
   onSuccess: refreshEvents,
   onError: (error) => report(error, 'Не удалось присоединиться. Проверьте подключение.'),
 })
 const leave = useMutation({
   mutationFn: leaveEvent,
+  onMutate: startAction,
+  onSettled: finishAction,
   onSuccess: refreshEvents,
   onError: (error) => report(error, 'Не удалось отписаться. Проверьте подключение.'),
 })
 const cancel = useMutation({
   mutationFn: cancelEvent,
-  onSuccess: async () => {
-    confirmingId.value = null
+  onMutate: startAction,
+  onSettled: finishAction,
+  onSuccess: async (_event, id) => {
+    if (confirmingId.value === id) confirmingId.value = null
     await refreshEvents()
   },
   onError: (error) => report(error, 'Не удалось отменить событие. Проверьте подключение.'),
 })
-const busy = computed(() => join.isPending.value || leave.isPending.value || cancel.isPending.value)
 function run(event: EventDto) {
+  if (busy(event.id)) return
   const action = cardAction(event, now.value)
   if (action.kind === 'join') join.mutate(event.id)
   else if (action.kind === 'leave') leave.mutate(event.id)
@@ -237,11 +253,14 @@ function run(event: EventDto) {
               <p>Отменить событие? Это действие нельзя отменить.</p>
               <div class="confirm-actions">
                 <AppButton
-                  :disabled="busy || cardAction(event, now).kind !== 'cancel'"
+                  :disabled="busy(event.id) || cardAction(event, now).kind !== 'cancel'"
                   @click="cancel.mutate(event.id)"
                   >Да, отменить</AppButton
                 >
-                <AppButton variant="secondary" :disabled="busy" @click="confirmingId = null"
+                <AppButton
+                  variant="secondary"
+                  :disabled="busy(event.id)"
+                  @click="confirmingId = null"
                   >Нет</AppButton
                 >
               </div>
@@ -251,9 +270,10 @@ function run(event: EventDto) {
               class="join-button"
               block
               :variant="cardAction(event, now).kind === 'join' ? 'primary' : 'secondary'"
-              :disabled="busy || cardAction(event, now).kind === 'unavailable'"
+              :disabled="busy(event.id) || cardAction(event, now).kind === 'unavailable'"
+              :aria-busy="busy(event.id)"
               @click="run(event)"
-              >{{ cardAction(event, now).label }}</AppButton
+              >{{ busy(event.id) ? 'Подождите…' : cardAction(event, now).label }}</AppButton
             >
           </EventCard>
         </div>

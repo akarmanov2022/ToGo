@@ -13,6 +13,7 @@ import {
   EventCard,
   fetchCategories,
   fetchMyEvents,
+  fetchOrganizerEvents,
   metaLine,
   participantsLine,
   stateLabel,
@@ -25,7 +26,7 @@ import { useProfile } from './useProfile'
 const props = defineProps<{ userId?: string }>()
 const auth = useAuthStore()
 const queryClient = useQueryClient()
-const isOwn = computed(() => !props.userId)
+const isOwn = computed(() => !props.userId || props.userId === auth.user?.id)
 
 const tabs = computed(() =>
   isOwn.value ? (['Я иду', 'Мои события', 'Архив'] as const) : (['События'] as const),
@@ -35,13 +36,14 @@ watch(isOwn, () => {
   tab.value = tabs.value[0]
 })
 
-const profileQuery = useProfile(() => props.userId)
+const profileQuery = useProfile(() => (isOwn.value ? undefined : props.userId))
 const categoriesQuery = useQuery({ queryKey: ['categories'], queryFn: fetchCategories })
 const categoryNames = computed(
   () => new Map((categoriesQuery.data.value ?? []).map((item) => [item.code, item.name])),
 )
 
 const profile = profileQuery.data
+const rating = computed(() => (profile.value?.organizerRating?.average ?? 0).toFixed(1))
 
 const editing = ref(false)
 const name = ref('')
@@ -95,6 +97,11 @@ const meetingsQuery = useQuery({
   enabled: isOwn,
 })
 const archiveStates = ['finished', 'cancelled_by_organizer', 'cancelled_by_system'] as const
+const organizerQuery = useQuery({
+  queryKey: computed(() => ['events', 'organizer', props.userId]),
+  queryFn: ({ signal }) => fetchOrganizerEvents(props.userId!, signal),
+  enabled: computed(() => !isOwn.value && Boolean(props.userId)),
+})
 const archiveQuery = useQuery({
   queryKey: ['events', 'mine', 'archive'],
   queryFn: async () => {
@@ -110,7 +117,7 @@ const archiveQuery = useQuery({
 })
 
 const list = computed(() => {
-  if (!isOwn.value) return [] as EventDto[]
+  if (!isOwn.value) return organizerQuery.data.value ?? ([] as EventDto[])
   if (tab.value === 'Я иду') return meetingsQuery.data.value?.filter(isVisibleInFeed) ?? []
   if (tab.value === 'Мои события')
     return meetingsQuery.data.value?.filter((event) => event.isOrganizer) ?? []
@@ -118,19 +125,26 @@ const list = computed(() => {
 })
 
 const listPending = computed(() => {
+  if (!isOwn.value) return organizerQuery.isPending.value
   if (tab.value !== 'Архив') return meetingsQuery.isPending.value
   return archiveQuery.isPending.value
 })
 const listError = computed(() => {
+  if (!isOwn.value) return organizerQuery.isError.value
   if (tab.value !== 'Архив') return meetingsQuery.isError.value
   return archiveQuery.isError.value
 })
 function refetchList() {
+  if (!isOwn.value) return organizerQuery.refetch()
   if (tab.value !== 'Архив') return meetingsQuery.refetch()
   return archiveQuery.refetch()
 }
 const listFetching = computed(() =>
-  tab.value === 'Архив' ? archiveQuery.isFetching.value : meetingsQuery.isFetching.value,
+  !isOwn.value
+    ? organizerQuery.isFetching.value
+    : tab.value === 'Архив'
+      ? archiveQuery.isFetching.value
+      : meetingsQuery.isFetching.value,
 )
 function reloadProfile() {
   return profileQuery.refetch()
@@ -160,6 +174,13 @@ function reloadProfile() {
           :alt="profile.name"
         />
         <div v-else class="avatar">{{ avatarLetter(profile.name) }}</div>
+        <div class="organizer-rating" :aria-label="`Рейтинг организатора: ${rating} из 5`">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8-6.2-3.2-6.2 3.2L7 14.2 2 9.3l6.9-1Z" />
+          </svg>
+          <strong>{{ rating }}</strong
+          ><span>из 5</span>
+        </div>
         <h2>{{ profile.name }}</h2>
         <p v-if="profile.tgLogin">@{{ profile.tgLogin }}</p>
         <p v-if="profile.city">{{ profile.city }}</p>
@@ -197,37 +218,33 @@ function reloadProfile() {
           </AppChip>
         </ChipGroup>
 
-        <template v-if="isOwn">
-          <p v-if="listPending" class="state compact">
-            <LoadingText label="Загружаем события" />
-          </p>
-          <div v-else-if="listError" class="state compact">
-            <p>Не удалось загрузить список.</p>
-            <AppButton
-              size="sm"
-              variant="secondary"
-              :disabled="listFetching"
-              @click="refetchList"
-              >{{ listFetching ? 'Загружаем…' : 'Повторить' }}</AppButton
-            >
-          </div>
-          <p v-else-if="list.length === 0" class="empty">Здесь пока пусто.</p>
-          <div v-else class="events">
-            <EventCard
-              v-for="(event, i) in list"
-              :key="event.id"
-              :to="`/events/${event.id}`"
-              :title="event.title"
-              :state="stateLabel(event.state)"
-              :meta="metaLine(event, categoryNames.get(event.category) ?? event.category)"
-              :place="`${event.location} · ${participantsLine(event)}${event.isOrganizer ? ' · вы организатор' : ''}`"
-              :pink="i % 2 === 0"
-              :organizer="event.organizer"
-              :category="event.category"
-            />
-          </div>
-        </template>
-        <p v-else class="empty">Чужой профиль доступен только для просмотра.</p>
+        <h2 v-if="!isOwn" class="events-heading">Созданные события</h2>
+        <p v-if="listPending" class="state compact">
+          <LoadingText label="Загружаем события" />
+        </p>
+        <div v-else-if="listError" class="state compact">
+          <p>Не удалось загрузить список.</p>
+          <AppButton size="sm" variant="secondary" :disabled="listFetching" @click="refetchList">{{
+            listFetching ? 'Загружаем…' : 'Повторить'
+          }}</AppButton>
+        </div>
+        <p v-else-if="list.length === 0" class="empty">
+          {{ isOwn ? 'Здесь пока пусто.' : 'Пользователь пока не создал событий.' }}
+        </p>
+        <div v-else class="events">
+          <EventCard
+            v-for="(event, i) in list"
+            :key="event.id"
+            :to="`/events/${event.id}`"
+            :title="event.title"
+            :state="stateLabel(event.state)"
+            :meta="metaLine(event, categoryNames.get(event.category) ?? event.category)"
+            :place="`${event.location} · ${participantsLine(event)}${event.isOrganizer ? ' · вы организатор' : ''}`"
+            :pink="i % 2 === 0"
+            :organizer="event.organizer"
+            :category="event.category"
+          />
+        </div>
       </div>
     </template>
   </section>
@@ -252,6 +269,28 @@ function reloadProfile() {
 }
 .summary h2 {
   font-size: 22px;
+}
+.organizer-rating {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 20px;
+  padding: 6px 12px;
+  background: #fff3d6;
+  color: #725014;
+  font-size: 13px;
+}
+.organizer-rating svg {
+  width: 18px;
+  height: 18px;
+  fill: #e5a827;
+}
+.organizer-rating span {
+  font-size: 11px;
+}
+.events-heading {
+  margin: 18px 0 12px;
+  font-size: 18px;
 }
 .summary p {
   font-size: 12px;
