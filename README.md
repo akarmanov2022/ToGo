@@ -5,32 +5,32 @@ ToGo - мини-приложение в Telegram для поиска компа�
 [@togo_devdays_bot](https://t.me/togo_devdays_bot)
 
 ## Команда
-Бровкина София (team lead @soneta1048)
-Айтал Багардынов (backend java developer @kolzuk)
-Арсений Карманов (backed java developer @arseniy_karmanov)
-Елена Александрова (frontent developer @elenalexxandrova)
-Иван Симоненко (frontend developer @simonoffcc)
+- **Бровкина София** - Team Lead [@soneta1048](https://t.me/soneta1048)
+- **Айтал Багардынов** - Backend Java Developer [@kolzuk](https://t.me/kolzuk)
+- **Арсений Карманов** - Backend Java Developer [@arseniy_karmanov](https://t.me/arseniy_karmanov)
+- **Елена Александрова** - Frontend Developer [@elenalexxandrova](https://t.me/elenalexxandrova)
+- **Иван Симоненко** - Frontend Developer [@simonoffcc](https://t.me/simonoffcc)
 
 ## Задача
-Бровкина София:
+### Бровкина София:
 1. Макеты веб-версии
 2. Сбор и анализ требований
 3. Интеграция Grafana и Prometheus
 4. Интеграция Swagger
-Айтал Багардынов:
+### Айтал Багардынов:
 1. Развёртывание инфраструктуры
 2. Настройка сервера
 3. Миграции для БД
 4. Проведение нагрузочного тестирования
-Арсений Карманов
+### Арсений Карманов
 1. Логика авторизации через telegram
 2. Реализация процесса работы со встречей
 3. Настройка qg
-Елена Александрова
+### Елена Александрова
 1. Верстка
 2. Развёртывание инфраструктуры фронтенда
 3. Интеграция бэкенда с фронтендом
-Иван Симоненко
+### Иван Симоненко
 1. Верстка
 2. Макеты мобильной версии
 3. Интеграция приложения в mini-app
