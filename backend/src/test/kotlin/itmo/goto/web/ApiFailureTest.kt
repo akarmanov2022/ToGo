@@ -25,6 +25,7 @@ class ApiFailureTest {
         "CAPACITY_BELOW_PARTICIPANTS, CONFLICT",
         "ORGANIZER_CANNOT_LEAVE, CONFLICT",
         "SCHEDULE_CONFLICT, CONFLICT",
+        "ALREADY_RATED, CONFLICT",
         "INTERNAL_ERROR, INTERNAL_SERVER_ERROR",
     )
     fun `failure code decides http status`(code: ApiError.Code, status: HttpStatus) {

@@ -108,6 +108,69 @@ class TelegramBotSenderTest {
     }
 
     @Test
+    fun `rating request sends five star buttons for the event`() {
+        val event = UUID.randomUUID()
+        val chatId = Random.nextLong(1, 10_000_000_000)
+        val builder = RestClient.builder()
+        val server = MockRestServiceServer.bindTo(builder).build()
+        server.expect(requestTo("https://api.telegram.test/bot7000000005:AAbot-sender-test-token/sendMessage"))
+            .andExpect(
+                content().json(
+                    """
+                    {
+                      "chat_id": $chatId,
+                      "text": "Встреча «Настолки» завершилась. Оцените её:",
+                      "reply_markup": {
+                        "inline_keyboard": [[
+                          {"text": "1 ⭐", "callback_data": "rate:$event:1"},
+                          {"text": "2 ⭐", "callback_data": "rate:$event:2"},
+                          {"text": "3 ⭐", "callback_data": "rate:$event:3"},
+                          {"text": "4 ⭐", "callback_data": "rate:$event:4"},
+                          {"text": "5 ⭐", "callback_data": "rate:$event:5"}
+                        ]]
+                      }
+                    }
+                    """.trimIndent(),
+                ),
+            )
+            .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON))
+        sender(builder).rating(chatId, "Встреча «Настолки» завершилась. Оцените её:", event)
+        server.verify()
+    }
+
+    @Test
+    fun `answer replies to the pressed button`() {
+        val id = "callback${Random.nextInt()}"
+        val builder = RestClient.builder()
+        val server = MockRestServiceServer.bindTo(builder).build()
+        server.expect(requestTo("https://api.telegram.test/bot7000000005:AAbot-sender-test-token/answerCallbackQuery"))
+            .andExpect(content().json("""{"callback_query_id": "$id", "text": "Вы уже оценили это событие"}"""))
+            .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON))
+        sender(builder).answer(id, "Вы уже оценили это событие")
+        server.verify()
+    }
+
+    @Test
+    fun `close removes the buttons of the message`() {
+        val chatId = Random.nextLong(1, 10_000_000_000)
+        val message = Random.nextLong(1, 1_000_000)
+        val builder = RestClient.builder()
+        val server = MockRestServiceServer.bindTo(builder).build()
+        server.expect(
+            requestTo("https://api.telegram.test/bot7000000005:AAbot-sender-test-token/editMessageReplyMarkup"),
+        )
+            .andExpect(
+                content().json(
+                    """{"chat_id": $chatId, "message_id": $message, "reply_markup": {"inline_keyboard": []}}""",
+                    true,
+                ),
+            )
+            .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON))
+        sender(builder).close(chatId, message)
+        server.verify()
+    }
+
+    @Test
     fun `bot api failure does not expose the bot token`() {
         val builder = RestClient.builder()
         val server = MockRestServiceServer.bindTo(builder).build()
@@ -125,6 +188,13 @@ class TelegramBotSenderTest {
             .withFailMessage("Bot API failure exposed the bot token")
             .doesNotContain("7000000005:AAbot-sender-test-token")
     }
+
+    private fun sender(builder: RestClient.Builder): TelegramBotSender = TelegramBotSender(
+        builder,
+        "7000000005:AAbot-sender-test-token",
+        "https://dev-togo.ru/",
+        "https://api.telegram.test",
+    )
 
     private fun withLocalBotApi(status: Int, body: AtomicReference<String>? = null, send: (BotSender) -> Unit) {
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)

@@ -73,15 +73,41 @@ class RatingsServiceTest(
     }
 
     @Test
-    fun `repeated rating replaces the earlier score`() {
+    fun `repeated rating answers already rated`() {
+        holder()
+        val event = finished()
+        Rows(jdbc).participant(event, holder)
+        ratings.rateEvent(event, RateEventRequest(Random.nextInt(1, 6)))
+        assertThat(Failure { ratings.rateEvent(event, RateEventRequest(Random.nextInt(1, 6))) }.code())
+            .withFailMessage("Repeated rating doesnt answer ALREADY_RATED")
+            .isEqualTo(ApiError.Code.ALREADY_RATED)
+    }
+
+    @Test
+    fun `repeated rating keeps the first score`() {
         holder()
         val event = finished()
         Rows(jdbc).participant(event, holder)
         val score = Random.nextInt(1, 6)
-        ratings.rateEvent(event, RateEventRequest((1..5).minus(score).random()))
-        assertThat(ratings.rateEvent(event, RateEventRequest(score)).rating?.average)
-            .withFailMessage("Repeated rating doesnt replace the earlier score")
-            .isEqualTo(score.toDouble())
+        ratings.rateEvent(event, RateEventRequest(score))
+        Failure { ratings.rateEvent(event, RateEventRequest((1..5).minus(score).random())) }.code()
+        entities.flush()
+        assertThat(jdbc.queryForList<Int>("SELECT score FROM event_ratings WHERE user_id = ?", holder))
+            .withFailMessage("Repeated rating doesnt keep the first score")
+            .containsExactly(score)
+    }
+
+    @Test
+    fun `rating of a telegram user counts as that user`() {
+        val other = Rows(jdbc).user()
+        val event = finished()
+        Rows(jdbc).participant(event, other)
+        val score = Random.nextInt(1, 6)
+        ratings.rate(event, other, score)
+        entities.flush()
+        assertThat(jdbc.queryForList<Int>("SELECT score FROM event_ratings WHERE user_id = ?", other))
+            .withFailMessage("Rating on behalf of a user isnt stored as that user")
+            .containsExactly(score)
     }
 
     @Test

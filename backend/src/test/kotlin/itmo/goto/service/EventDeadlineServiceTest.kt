@@ -67,6 +67,37 @@ class EventDeadlineServiceTest(
     }
 
     @Test
+    fun `end asks every participant except the organizer to rate once`() {
+        val starts = now.minus(Duration.ofHours(3))
+        val event = event("registration_closed", starts.minus(minutes(0, 600)), starts)
+        val guests = List(Random.nextInt(1, 4)) { Rows(jdbc).user() }
+        guests.forEach { Rows(jdbc).participant(event, it) }
+        deadlines.settle()
+        deadlines.settle()
+        entities.flush()
+        assertThat(
+            jdbc.queryForList<UUID>("SELECT user_id FROM notifications WHERE event_id = ? AND kind = 'rating'", event),
+        )
+            .withFailMessage("End didnt ask every participant except the organizer to rate exactly once")
+            .containsExactlyInAnyOrderElementsOf(guests)
+    }
+
+    @Test
+    fun `system cancellation asks nobody to rate`() {
+        val starts = now.minus(Duration.ofHours(3)).minus(minutes(0, 600))
+        val event = event("recruiting", starts.minus(minutes(0, 600)), starts)
+        Rows(jdbc).participant(event, Rows(jdbc).user())
+        jdbc.update("UPDATE events SET min_users = 3 WHERE id = ?", event)
+        deadlines.settle()
+        entities.flush()
+        assertThat(
+            jdbc.queryForList<UUID>("SELECT user_id FROM notifications WHERE event_id = ? AND kind = 'rating'", event),
+        )
+            .withFailMessage("System cancellation asked participants to rate")
+            .isEmpty()
+    }
+
+    @Test
     fun `deadline closes the registration of an event with the minimum`() {
         val event = event("recruiting", now, now.plus(minutes(0, 600)))
         assertThat(settled(event))

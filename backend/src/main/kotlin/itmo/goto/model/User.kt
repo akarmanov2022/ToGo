@@ -52,10 +52,10 @@ class User(
     private var visited: Int = 0
 
     @Formula(
-        "(SELECT round(avg(r.score), 1) FROM event_ratings r JOIN events e ON e.id = r.event_id " +
+        "(SELECT coalesce(round(avg(r.score), 1), 0) FROM event_ratings r JOIN events e ON e.id = r.event_id " +
             "WHERE e.organizer_id = id)",
     )
-    private var average: Double? = null
+    private var average: Double = 0.0
 
     @Formula("(SELECT count(*) FROM event_ratings r JOIN events e ON e.id = r.event_id WHERE e.organizer_id = id)")
     private var ratings: Int = 0
@@ -70,7 +70,7 @@ class User(
         categories.sorted().toSet(),
         created,
         visited,
-        average?.let { Rating(it, ratings) },
+        Rating(average, ratings),
     )
 
     fun profile(): UserProfile = UserProfile(
@@ -82,7 +82,7 @@ class User(
         categories.sorted().toSet(),
         created,
         visited,
-        average?.let { Rating(it, ratings) },
+        Rating(average, ratings),
     )
 
     fun summary(): UserSummary = UserSummary(checkNotNull(id) { "User has no id before it is saved" }, tgLogin)

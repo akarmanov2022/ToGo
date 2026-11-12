@@ -59,6 +59,9 @@ class NotificationQueue(
         if (before != State.CANCELLED_BY_ORGANIZER && after == State.CANCELLED_BY_ORGANIZER) {
             notifyMembers(event, "cancelled", now, false)
         }
+        if (before != State.FINISHED && after == State.FINISHED) {
+            notifyMembers(event, "rating", now, false)
+        }
     }
 
     private fun notifyMembers(event: Event, kind: String, now: Instant, includeOrganizer: Boolean) {

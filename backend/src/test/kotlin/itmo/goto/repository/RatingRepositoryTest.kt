@@ -20,15 +20,13 @@ class RatingRepositoryTest(
     @Autowired private val jdbc: JdbcTemplate,
 ) {
     @Test
-    fun `repeated rating replaces the earlier score`() {
+    fun `rating stores the score`() {
         val rows = Rows(jdbc)
         val event = rows.event()
-        val user = rows.user()
         val score = Random.nextInt(1, 6)
-        ratings.rate(event, user, (1..5).minus(score).random(), moment())
-        ratings.rate(event, user, score, moment())
+        ratings.rate(event, rows.user(), score, moment())
         assertThat(jdbc.queryForList<Int>("SELECT score FROM event_ratings WHERE event_id = ?", event))
-            .withFailMessage("Repeated rating doesnt replace the earlier score with one row")
+            .withFailMessage("Rating doesnt store the score")
             .containsExactly(score)
     }
 

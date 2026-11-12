@@ -13,7 +13,6 @@ interface RatingRepository : JpaRepository<Rating, UUID> {
         value = """
             INSERT INTO event_ratings (event_id, user_id, score, created_at, updated_at)
             VALUES (?1, ?2, ?3, ?4, ?4)
-            ON CONFLICT (event_id, user_id) DO UPDATE SET score = EXCLUDED.score, updated_at = EXCLUDED.updated_at
         """,
         nativeQuery = true,
     )

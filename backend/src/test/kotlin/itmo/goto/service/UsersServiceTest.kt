@@ -276,19 +276,19 @@ class UsersServiceTest(
         val event = rows.event(rows.user(), "finished")
         rows.participant(event, other)
         rows.rating(event, rows.user(), Random.nextInt(1, 6))
-        assertThat(service.getUser(other).organizerRating)
+        assertThat(service.getUser(other).organizerRating?.count)
             .withFailMessage("Other profile counts ratings of events organized by others")
-            .isNull()
+            .isZero()
     }
 
     @Test
-    fun `current user without ratings has no organizer rating`() {
+    fun `current user without ratings has an organizer rating of zero`() {
         val rows = Rows(jdbc)
         rows.user(holder, Random.nextLong(1, 10_000_000_000), null)
         rows.event(holder, "finished")
-        assertThat(service.getCurrentUser().organizerRating)
-            .withFailMessage("Current user without ratings has an organizer rating")
-            .isNull()
+        assertThat(service.getCurrentUser().organizerRating?.average)
+            .withFailMessage("Current user without ratings doesnt have an organizer rating of 0.0")
+            .isZero()
     }
 
     @Test

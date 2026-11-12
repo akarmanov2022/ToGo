@@ -7,13 +7,18 @@ import org.springframework.web.client.RestClient
 import org.springframework.web.client.RestClientException
 import java.util.UUID
 
-/** Sends welcome and event notifications through Telegram. */
 interface BotSender {
     fun welcome(chatId: Long)
 
     fun message(chatId: Long, text: String)
 
     fun comment(chatId: Long, text: String, eventId: UUID)
+
+    fun rating(chatId: Long, text: String, eventId: UUID)
+
+    fun answer(callbackId: String, text: String)
+
+    fun close(chatId: Long, messageId: Long)
 }
 
 class BotBlocked : RuntimeException()
@@ -44,43 +49,68 @@ class TelegramBotSender(
                 ),
             ).retrieve().toBodilessEntity()
         } catch (_: RestClientException) {
-            // Client exceptions can contain the request URL, which includes the bot token.
             error("Не удалось отправить приветствие через Telegram")
         }
     }
 
-    override fun message(chatId: Long, text: String) {
+    override fun message(chatId: Long, text: String) = call("/sendMessage", mapOf("chat_id" to chatId, "text" to text))
+
+    override fun comment(chatId: Long, text: String, eventId: UUID) {
+        val url = "${appUrl.trimEnd('/')}/events/$eventId#comments"
+        call(
+            "/sendMessage",
+            mapOf(
+                "chat_id" to chatId,
+                "text" to text,
+                "reply_markup" to mapOf(
+                    "inline_keyboard" to listOf(
+                        listOf(mapOf("text" to "Открыть комментарии", "web_app" to mapOf("url" to url))),
+                    ),
+                ),
+            ),
+        )
+    }
+
+    override fun rating(chatId: Long, text: String, eventId: UUID) = call(
+        "/sendMessage",
+        mapOf(
+            "chat_id" to chatId,
+            "text" to text,
+            "reply_markup" to mapOf(
+                "inline_keyboard" to listOf(
+                    stars.map { mapOf("text" to "$it ⭐", "callback_data" to "rate:$eventId:$it") },
+                ),
+            ),
+        ),
+    )
+
+    override fun answer(callbackId: String, text: String) =
+        call("/answerCallbackQuery", mapOf("callback_query_id" to callbackId, "text" to text))
+
+    override fun close(chatId: Long, messageId: Long) = call(
+        "/editMessageReplyMarkup",
+        mapOf(
+            "chat_id" to chatId,
+            "message_id" to messageId,
+            "reply_markup" to mapOf("inline_keyboard" to emptyList<Any>()),
+        ),
+    )
+
+    private fun call(path: String, body: Map<String, Any>) {
         try {
-            client.post().uri("/sendMessage").body(mapOf("chat_id" to chatId, "text" to text))
-                .retrieve().toBodilessEntity()
+            client.post().uri(path).body(body).retrieve().toBodilessEntity()
         } catch (error: org.springframework.web.client.RestClientResponseException) {
-            if (error.statusCode == HttpStatus.FORBIDDEN) throw BotBlocked()
-            throw BotUnavailable()
+            throw failure(error)
         } catch (_: RestClientException) {
             // Exception messages may contain the bot token in the request URL.
             throw BotUnavailable()
         }
     }
 
-    override fun comment(chatId: Long, text: String, eventId: UUID) {
-        val url = "${appUrl.trimEnd('/')}/events/$eventId#comments"
-        try {
-            client.post().uri("/sendMessage").body(
-                mapOf(
-                    "chat_id" to chatId,
-                    "text" to text,
-                    "reply_markup" to mapOf(
-                        "inline_keyboard" to listOf(
-                            listOf(mapOf("text" to "Открыть комментарии", "web_app" to mapOf("url" to url))),
-                        ),
-                    ),
-                ),
-            ).retrieve().toBodilessEntity()
-        } catch (error: org.springframework.web.client.RestClientResponseException) {
-            if (error.statusCode == HttpStatus.FORBIDDEN) throw BotBlocked()
-            throw BotUnavailable()
-        } catch (_: RestClientException) {
-            throw BotUnavailable()
-        }
+    private fun failure(error: org.springframework.web.client.RestClientResponseException): RuntimeException =
+        if (error.statusCode == HttpStatus.FORBIDDEN) BotBlocked() else BotUnavailable()
+
+    companion object {
+        private val stars = 1..5
     }
 }

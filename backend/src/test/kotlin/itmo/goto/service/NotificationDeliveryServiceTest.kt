@@ -145,6 +145,22 @@ class NotificationDeliveryServiceTest(
     }
 
     @Test
+    fun `rating request sends star buttons for the event`() {
+        val id = due("rating")
+        val eventId = jdbc.queryForObject<UUID>("SELECT event_id FROM notifications WHERE id = ?", id)
+        val chatId = jdbc.queryForObject<Long>(
+            "SELECT u.tg_id FROM users u JOIN notifications n ON n.user_id = u.id WHERE n.id = ?",
+            id,
+        )
+        val title = jdbc.queryForObject<String>(
+            "SELECT e.title FROM events e JOIN notifications n ON n.event_id = e.id WHERE n.id = ?",
+            id,
+        )
+        delivery.deliver()
+        verify(sender).rating(chatId!!, "Встреча «$title» завершилась. Оцените её:", eventId!!)
+    }
+
+    @Test
     fun `third failed attempt stops retries`() {
         val id = due("joined")
         jdbc.update("UPDATE notifications SET attempts = 2 WHERE id = ?", id)
