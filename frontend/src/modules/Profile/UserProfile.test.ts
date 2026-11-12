@@ -117,6 +117,62 @@ it('не показывает интересы, редактор и архив �
   )
 })
 
+it.each([undefined, 'other'])('показывает рейтинг под фото в профиле %s', async (userId) => {
+  apiRequest.mockImplementation((path: string) => {
+    if (path.startsWith('/api/v1/users/'))
+      return Promise.resolve({ ...profile, organizerRating: { average: 4.3, count: 3 } })
+    if (path === '/api/v1/categories') return Promise.resolve([])
+    return Promise.resolve({ items: [], total: 0 })
+  })
+  const wrapper = render(userId)
+  await flushPromises()
+  expect(wrapper.get('.organizer-rating').text()).toContain('4.3')
+  expect(wrapper.get('.organizer-rating').attributes('aria-label')).toBe(
+    'Рейтинг организатора: 4.3 из 5',
+  )
+})
+
+it('показывает 0.0 без оценок, не вычисляя рейтинг на клиенте', async () => {
+  const wrapper = render('other')
+  await flushPromises()
+  expect(wrapper.get('.organizer-rating').text()).toContain('0.0')
+})
+
+it('показывает созданные события другого пользователя со всех страниц, но не чужие участия', async () => {
+  const base = {
+    description: '',
+    location: 'Парк',
+    startsAt: '2026-12-01T12:00:00Z',
+    state: 'finished',
+    category: 'RUN',
+    participantsCount: 2,
+    maxUsers: 5,
+  }
+  apiRequest.mockImplementation((path: string) => {
+    if (path.startsWith('/api/v1/users/')) return Promise.resolve({ ...profile, id: 'other' })
+    if (path === '/api/v1/categories') return Promise.resolve([])
+    const offset = Number(new URL(path, 'http://localhost').searchParams.get('offset'))
+    const items =
+      offset === 0
+        ? [
+            { ...base, id: 'a', title: 'Созданная встреча', organizer: { id: 'other' } },
+            { ...base, id: 'b', title: 'Не его встреча', organizer: { id: 'third' } },
+          ]
+        : [{ ...base, id: 'c', title: 'Встреча со следующей страницы', organizer: { id: 'other' } }]
+    return Promise.resolve({ items, total: 3 })
+  })
+  const wrapper = render('other')
+  await flushPromises()
+  expect(wrapper.text()).toContain('Созданные события')
+  expect(wrapper.findAll('.event-card')).toHaveLength(2)
+  expect(wrapper.text()).toContain('Встреча со следующей страницы')
+  expect(wrapper.text()).not.toContain('Не его встреча')
+  expect(wrapper.text()).not.toContain('только для просмотра')
+  expect(apiRequest.mock.calls.some(([path]) => String(path).includes('participating='))).toBe(
+    false,
+  )
+})
+
 it('поздний ответ сохранения не восстанавливает приватный кеш завершённой сессии', async () => {
   const wrapper = render()
   await flushPromises()

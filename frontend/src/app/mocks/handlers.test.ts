@@ -63,6 +63,17 @@ afterEach(() => {
 afterAll(() => server.close())
 
 describe('local MSW contract', () => {
+  it('сохраняет единственную оценку и обновляет рейтинг организатора', async () => {
+    await request(eventUrl('/participants/me'), 'PUT')
+    const later = Date.now() + 60 * 3_600_000
+    vi.spyOn(Date, 'now').mockReturnValue(later)
+    const rated = await request(eventUrl('/rating'), 'PUT', { score: 4 })
+    expect(rated.status).toBe(200)
+    expect(await rated.json()).toMatchObject({ myRating: 4, rating: { average: 4, count: 1 } })
+    await error(await request(eventUrl('/rating'), 'PUT', { score: 5 }), 409, 'ALREADY_RATED')
+    const profile = await request(url(`/users/${otherUser.id}`))
+    expect(await profile.json()).toMatchObject({ organizerRating: { average: 4, count: 1 } })
+  })
   it('accepts only the explicit local initData, not Telegram-like strings', async () => {
     const response = await request(url('/auth/telegram'), 'POST', { initData: localInitData }, null)
     expect(response.headers.get('Cache-Control')).toBe('no-store')
