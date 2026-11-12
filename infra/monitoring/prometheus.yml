@@ -1,9 +1,12 @@
-apiVersion: 1
+global:
+  scrape_interval: 15s
 
-datasources:
-  - name: Prometheus
-    uid: prometheus
-    type: prometheus
-    access: proxy
-    url: http://prometheus:9090
-    isDefault: true
+scrape_configs:
+  - job_name: togo-backend
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["backend:8080"]
+
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
