@@ -67,6 +67,6 @@ class EventCreationService(
         )
         participations.save(Participation(event, organizer))
         notifications.reminders(event, organizer, now)
-        event.card(identity.user(), true)
+        event.card(identity.user(), true, null)
     }
 }

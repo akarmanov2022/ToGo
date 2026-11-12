@@ -119,6 +119,13 @@ class Meeting(
     fun clashes(other: Schedule, now: Instant): Boolean =
         current(now).state in setOf(State.RECRUITING, State.REGISTRATION_CLOSED) && schedule.near(other)
 
+    /**
+     * Принимает оценку только у завершённой встречи, сначала приводя её к состоянию на момент [now].
+     */
+    fun rate(now: Instant): Decision = current(now).run {
+        if (state == State.FINISHED) Accepted(this) else Refused(this, Refusal.INVALID_EVENT_STATE)
+    }
+
     private fun blocked(): Refusal =
         if (state == State.REGISTRATION_CLOSED) Refusal.REGISTRATION_CLOSED else Refusal.INVALID_EVENT_STATE
 }

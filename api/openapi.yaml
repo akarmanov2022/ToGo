@@ -37,6 +37,8 @@ tags:
     description: События и участие
   - name: Comments
     description: Комментарии участников под событием
+  - name: Ratings
+    description: Оценки завершённых событий
 
 security:
   - bearerAuth: []
@@ -569,6 +571,40 @@ paths:
         '500':
           $ref: '#/components/responses/UnexpectedError'
 
+  /api/v1/events/{eventId}/rating:
+    parameters:
+      - $ref: '#/components/parameters/EventId'
+    put:
+      tags: [Ratings]
+      operationId: rateEvent
+      summary: Оценить завершённое событие
+      description: |
+        Только участник события, кроме организатора; не участнику и организатору — 403 FORBIDDEN.
+        Оценить можно только событие в finished, иначе 409 INVALID_EVENT_STATE.
+        Перед проверкой событие приводится к актуальному состоянию.
+        Повторная оценка заменяет прежнюю; срока давности нет.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RateEventRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/UnexpectedError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -737,6 +773,11 @@ components:
           format: int32
           minimum: 0
           description: Число событий в finished, в которых пользователь участвовал, включая организованные им
+        organizerRating:
+          allOf:
+            - $ref: '#/components/schemas/Rating'
+          nullable: true
+          description: Среднее всех оценок событий, организованных пользователем; null, если оценок нет
 
     UserProfile:
       type: object
@@ -773,6 +814,11 @@ components:
           format: int32
           minimum: 0
           description: Число событий в finished, в которых пользователь участвовал, включая организованные им
+        organizerRating:
+          allOf:
+            - $ref: '#/components/schemas/Rating'
+          nullable: true
+          description: Среднее всех оценок событий, организованных пользователем; null, если оценок нет
 
     UpdateProfileRequest:
       type: object
@@ -940,6 +986,18 @@ components:
         isOrganizer:
           type: boolean
           description: Текущий пользователь — организатор
+        rating:
+          allOf:
+            - $ref: '#/components/schemas/Rating'
+          nullable: true
+          description: Средняя оценка события участниками; null, если оценок нет
+        myRating:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 5
+          nullable: true
+          description: Оценка текущего пользователя; null, если он её не ставил
 
     CreateEventRequest:
       type: object
@@ -1107,6 +1165,34 @@ components:
           minLength: 1
           maxLength: 1000
           pattern: '[\s\S]*\S[\s\S]*'
+
+    Rating:
+      type: object
+      required: [average, count]
+      properties:
+        average:
+          type: number
+          format: double
+          minimum: 1
+          maximum: 5
+          description: Среднее оценок, округлённое до одного знака после запятой
+        count:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Число оценок
+
+    RateEventRequest:
+      type: object
+      additionalProperties: false
+      required: [score]
+      properties:
+        score:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 5
+          description: Оценка от 1 до 5
 
     CommentPage:
       type: object

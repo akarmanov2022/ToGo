@@ -2,6 +2,7 @@ package itmo.goto.model
 
 import itmo.goto.generated.model.CurrentUser
 import itmo.goto.generated.model.EventCategory
+import itmo.goto.generated.model.Rating
 import itmo.goto.generated.model.UserProfile
 import itmo.goto.generated.model.UserSummary
 import jakarta.persistence.CollectionTable
@@ -50,6 +51,15 @@ class User(
     )
     private var visited: Int = 0
 
+    @Formula(
+        "(SELECT round(avg(r.score), 1) FROM event_ratings r JOIN events e ON e.id = r.event_id " +
+            "WHERE e.organizer_id = id)",
+    )
+    private var average: Double? = null
+
+    @Formula("(SELECT count(*) FROM event_ratings r JOIN events e ON e.id = r.event_id WHERE e.organizer_id = id)")
+    private var ratings: Int = 0
+
     fun current(): CurrentUser = CurrentUser(
         checkNotNull(id) { "User has no id before it is saved" },
         tgId,
@@ -60,6 +70,7 @@ class User(
         categories.sorted().toSet(),
         created,
         visited,
+        average?.let { Rating(it, ratings) },
     )
 
     fun profile(): UserProfile = UserProfile(
@@ -71,6 +82,7 @@ class User(
         categories.sorted().toSet(),
         created,
         visited,
+        average?.let { Rating(it, ratings) },
     )
 
     fun summary(): UserSummary = UserSummary(checkNotNull(id) { "User has no id before it is saved" }, tgLogin)

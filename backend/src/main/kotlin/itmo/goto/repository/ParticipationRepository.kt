@@ -2,6 +2,7 @@ package itmo.goto.repository
 
 import itmo.goto.model.Event
 import itmo.goto.model.Participation
+import itmo.goto.model.Rating
 import itmo.goto.model.User
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
@@ -31,4 +32,10 @@ interface ParticipationRepository : JpaRepository<Participation, UUID> {
 
     @Query("SELECT p.event.id FROM Participation p WHERE p.user.id = ?1 AND p.event.id IN ?2")
     fun joined(user: UUID, events: Collection<UUID>): List<UUID>
+
+    @Query("SELECT r.score FROM Rating r WHERE r.event.id = ?1 AND r.user.id = ?2")
+    fun score(event: UUID, user: UUID): Int?
+
+    @Query("SELECT r FROM Rating r WHERE r.user.id = ?1 AND r.event.id IN ?2")
+    fun scores(user: UUID, events: Collection<UUID>): List<Rating>
 }

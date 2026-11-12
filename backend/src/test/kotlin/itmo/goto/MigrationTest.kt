@@ -10,6 +10,7 @@ import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.jdbc.core.JdbcTemplate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
+import java.util.UUID
 import kotlin.random.Random
 
 @DataJpaTest
@@ -111,6 +112,41 @@ class MigrationTest(@Autowired private val jdbc: JdbcTemplate) {
         rows.notification(user, event, kind)
         assertThatThrownBy { rows.notification(user, event, kind) }
             .withFailMessage("Database doesnt reject a repeated notification of one kind")
+            .isInstanceOf(DataIntegrityViolationException::class.java)
+    }
+
+    @Test
+    fun `rating of zero is rejected`() {
+        val rows = Rows(jdbc)
+        assertThatThrownBy { rows.rating(rows.event(), rows.user(), 0) }
+            .withFailMessage("Database doesnt reject a rating of zero")
+            .isInstanceOf(DataIntegrityViolationException::class.java)
+    }
+
+    @Test
+    fun `rating above five is rejected`() {
+        val rows = Rows(jdbc)
+        assertThatThrownBy { rows.rating(rows.event(), rows.user(), Random.nextInt(6, 100)) }
+            .withFailMessage("Database doesnt reject a rating above five")
+            .isInstanceOf(DataIntegrityViolationException::class.java)
+    }
+
+    @Test
+    fun `second rating of one user for one event is rejected`() {
+        val rows = Rows(jdbc)
+        val event = rows.event()
+        val user = rows.user()
+        rows.rating(event, user, Random.nextInt(1, 6))
+        assertThatThrownBy { rows.rating(event, user, Random.nextInt(1, 6)) }
+            .withFailMessage("Database doesnt reject a second rating of one user for one event")
+            .isInstanceOf(DataIntegrityViolationException::class.java)
+    }
+
+    @Test
+    fun `rating of an unknown event is rejected`() {
+        val rows = Rows(jdbc)
+        assertThatThrownBy { rows.rating(UUID.randomUUID(), rows.user(), Random.nextInt(1, 6)) }
+            .withFailMessage("Database doesnt reject a rating of an unknown event")
             .isInstanceOf(DataIntegrityViolationException::class.java)
     }
 }
