@@ -121,6 +121,34 @@ export function leaveEvent(eventId: string): Promise<void> {
   return apiRequest<void>(`/api/v1/events/${eventId}/participants/me`, { method: 'DELETE' })
 }
 
+export function rateEvent(eventId: string, score: number): Promise<EventDto> {
+  return apiRequest<EventDto>(`/api/v1/events/${eventId}/rating`, {
+    method: 'PUT',
+    body: { score },
+  })
+}
+
+// В контракте пока нет фильтра по организатору: просматриваем публичные страницы,
+// не используя participating=true (это личные участия текущего пользователя).
+export async function fetchOrganizerEvents(
+  userId: string,
+  signal?: AbortSignal,
+): Promise<EventDto[]> {
+  const items: EventDto[] = []
+  let offset = 0
+  while (true) {
+    const page = await apiRequest<EventPage>(`/api/v1/events?limit=100&offset=${offset}`, {
+      signal,
+    })
+    items.push(...page.items.filter((event) => event.organizer.id === userId))
+    offset += page.items.length
+    if (!page.items.length || offset >= page.total) break
+  }
+  return [...new Map(items.map((event) => [event.id, event])).values()].sort(
+    (a, b) => Date.parse(b.startsAt) - Date.parse(a.startsAt) || a.id.localeCompare(b.id),
+  )
+}
+
 export function fetchParticipants(eventId: string): Promise<ParticipantPage> {
   return apiRequest<ParticipantPage>(`/api/v1/events/${eventId}/participants?limit=100&offset=0`)
 }

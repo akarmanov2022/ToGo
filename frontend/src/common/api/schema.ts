@@ -305,6 +305,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/events/{eventId}/rating": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventId: components["parameters"]["EventId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Оценить завершённое событие
+         * @description Только участник события, кроме организатора; не участнику и организатору — 403 FORBIDDEN.
+         *     Оценить можно только событие в finished, иначе 409 INVALID_EVENT_STATE.
+         *     Перед проверкой событие приводится к актуальному состоянию.
+         *     Один пользователь оценивает событие один раз: повторная оценка — 409 ALREADY_RATED.
+         */
+        put: operations["rateEvent"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -351,6 +376,7 @@ export interface components {
              * @description Число событий в finished, в которых пользователь участвовал, включая организованные им
              */
             visitedEventsCount: number;
+            organizerRating?: components["schemas"]["Rating"];
         };
         /** @description Профиль другого пользователя без Telegram ID */
         UserProfile: {
@@ -371,6 +397,7 @@ export interface components {
              * @description Число событий в finished, в которых пользователь участвовал, включая организованные им
              */
             visitedEventsCount: number;
+            organizerRating?: components["schemas"]["Rating"];
         };
         UpdateProfileRequest: {
             name: string;
@@ -456,6 +483,13 @@ export interface components {
             isParticipant: boolean;
             /** @description Текущий пользователь — организатор */
             isOrganizer: boolean;
+            /** @description Средняя оценка события участниками; null, если оценок нет */
+            rating?: components["schemas"]["Rating"] | null;
+            /**
+             * Format: int32
+             * @description Оценка текущего пользователя; null, если он её не ставил
+             */
+            myRating?: number | null;
         };
         CreateEventRequest: {
             /** @description Название, содержащее хотя бы один непробельный символ */
@@ -542,6 +576,29 @@ export interface components {
         CreateCommentRequest: {
             text: string;
         };
+        /**
+         * @description Средняя оценка. У события null, если оценок нет. Рейтинг организатора
+         *     (organizerRating в профиле) всегда задан и равен 0.0 при count 0.
+         */
+        Rating: {
+            /**
+             * Format: double
+             * @description Сумма оценок, делённая на их число, округлённая до одного знака после запятой; 0.0 без оценок
+             */
+            average: number;
+            /**
+             * Format: int32
+             * @description Число оценок
+             */
+            count: number;
+        };
+        RateEventRequest: {
+            /**
+             * Format: int32
+             * @description Оценка от 1 до 5
+             */
+            score: number;
+        };
         CommentPage: {
             items: components["schemas"]["Comment"][];
             /** Format: int64 */
@@ -556,7 +613,7 @@ export interface components {
              * @description Стабильный машинный код для обработки на клиенте
              * @enum {string}
              */
-            code: "VALIDATION_ERROR" | "INVALID_TELEGRAM_INIT_DATA" | "UNAUTHORIZED" | "FORBIDDEN" | "EVENT_NOT_FOUND" | "USER_NOT_FOUND" | "REGISTRATION_CLOSED" | "INVALID_EVENT_STATE" | "EVENT_FULL" | "CAPACITY_BELOW_PARTICIPANTS" | "ORGANIZER_CANNOT_LEAVE" | "SCHEDULE_CONFLICT" | "INTERNAL_ERROR";
+            code: "VALIDATION_ERROR" | "INVALID_TELEGRAM_INIT_DATA" | "UNAUTHORIZED" | "FORBIDDEN" | "EVENT_NOT_FOUND" | "USER_NOT_FOUND" | "REGISTRATION_CLOSED" | "INVALID_EVENT_STATE" | "EVENT_FULL" | "CAPACITY_BELOW_PARTICIPANTS" | "ORGANIZER_CANNOT_LEAVE" | "SCHEDULE_CONFLICT" | "ALREADY_RATED" | "INTERNAL_ERROR";
             /** @description Сообщение для пользователя; не использовать для определения типа ошибки */
             message: string;
             /** @description Ошибки отдельных полей; пустой массив для ошибок без привязки к полю */
@@ -630,7 +687,7 @@ export interface components {
         /**
          * @description Конфликт с текущим состоянием события. Код зависит от операции:
          *     REGISTRATION_CLOSED, INVALID_EVENT_STATE, EVENT_FULL,
-         *     CAPACITY_BELOW_PARTICIPANTS, ORGANIZER_CANNOT_LEAVE или SCHEDULE_CONFLICT.
+         *     CAPACITY_BELOW_PARTICIPANTS, ORGANIZER_CANNOT_LEAVE, SCHEDULE_CONFLICT или ALREADY_RATED.
          */
         Conflict: {
             headers: {
@@ -1131,6 +1188,30 @@ export interface operations {
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
             404: components["responses"]["NotFound"];
+            500: components["responses"]["UnexpectedError"];
+        };
+    };
+    rateEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventId: components["parameters"]["EventId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RateEventRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["EventResponse"];
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            409: components["responses"]["Conflict"];
             500: components["responses"]["UnexpectedError"];
         };
     };

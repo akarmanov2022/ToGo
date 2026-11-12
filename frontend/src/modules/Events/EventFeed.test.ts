@@ -49,6 +49,59 @@ function card(wrapper: ReturnType<typeof mountFeed>, title: string) {
   return wrapper.findAll('.event-card').find((item) => item.text().includes(title))!
 }
 
+it('не меняет соседние кнопки при параллельной записи и ошибке одной из встреч', async () => {
+  const first = fixture({ id: 'first', title: 'Первая встреча' })
+  const second = fixture({ id: 'second', title: 'Вторая встреча' })
+  const third = fixture({ id: 'third', title: 'Третья встреча' })
+  const requests = new Map<
+    string,
+    { resolve: (event: Event) => void; reject: (error: Error) => void }
+  >()
+  apiRequest.mockImplementation((path: string, options?: { method?: string }) => {
+    if (path === '/api/v1/categories') return Promise.resolve([])
+    if (options?.method === 'PUT')
+      return new Promise((resolve, reject) => {
+        requests.set(path, { resolve, reject })
+      })
+    return Promise.resolve({ items: [first, second, third], total: 3, limit: 100, offset: 0 })
+  })
+  const wrapper = mountFeed()
+  try {
+    await flushPromises()
+    const untouched = card(wrapper, third.title).get('button.join-button')
+    const before = untouched.element.outerHTML
+    await card(wrapper, first.title).get('button.join-button').trigger('click')
+    await flushPromises()
+    expect(
+      card(wrapper, first.title).get('button.join-button').attributes('disabled'),
+    ).toBeDefined()
+    expect(
+      card(wrapper, second.title).get('button.join-button').attributes('disabled'),
+    ).toBeUndefined()
+    expect(untouched.element.outerHTML).toBe(before)
+    await card(wrapper, second.title).get('button.join-button').trigger('click')
+    await flushPromises()
+    requests.get('/api/v1/events/first/participants/me')!.reject(new Error('offline'))
+    await flushPromises()
+    expect(
+      card(wrapper, first.title).get('button.join-button').attributes('disabled'),
+    ).toBeUndefined()
+    expect(
+      card(wrapper, second.title).get('button.join-button').attributes('disabled'),
+    ).toBeDefined()
+    requests
+      .get('/api/v1/events/second/participants/me')!
+      .resolve({ ...second, isParticipant: true })
+    await flushPromises()
+    expect(untouched.element.outerHTML).toBe(before)
+    expect(
+      card(wrapper, second.title).get('button.join-button').attributes('disabled'),
+    ).toBeUndefined()
+  } finally {
+    wrapper.unmount()
+  }
+})
+
 it('показывает кнопку по роли пользователя: организатор, участник, свободно, забито', async () => {
   const events = [
     fixture({ id: 'own', title: 'Своя встреча', isOrganizer: true }),

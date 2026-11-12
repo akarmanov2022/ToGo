@@ -20,6 +20,7 @@ import { availableActions, stateLabel } from './rules'
 import { eventCategories } from './categories'
 import EventEditor from './EventEditor.vue'
 import EventComments from './EventComments.vue'
+import EventRating from './EventRating.vue'
 import { cardAction } from './actions'
 
 const props = defineProps<{ eventId: string }>()
@@ -243,6 +244,7 @@ const busy = computed(
         </div>
       </div>
 
+      <EventRating :key="event.id" :event="event" />
       <section class="location">
         <h2>Место на карте</h2>
         <EventMap

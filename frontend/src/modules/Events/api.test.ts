@@ -5,6 +5,8 @@ import {
   buildFeedQuery,
   fetchFeedMap,
   fetchMyEvents,
+  fetchOrganizerEvents,
+  rateEvent,
   fetchCategories,
   fetchEvent,
   fetchParticipants,
@@ -24,8 +26,35 @@ afterEach(() => {
 
 const now = new Date('2026-11-10T12:00:00Z')
 
+it('читает публичные события со всех страниц с отменой, отбирая только нужного организатора', async () => {
+  const mine = { id: 'mine', organizer: { id: 'target' } }
+  const next = { id: 'next', organizer: { id: 'target' } }
+  const fetch = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ items: [{ id: 'other', organizer: { id: 'someone' } }, mine], total: 3 }),
+      ),
+    )
+    .mockResolvedValueOnce(new Response(JSON.stringify({ items: [next], total: 3 })))
+  vi.stubGlobal('fetch', fetch)
+  const signal = new AbortController().signal
+  expect(await fetchOrganizerEvents('target', signal)).toEqual([mine, next])
+  expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+    '/api/v1/events?limit=100&offset=0',
+    '/api/v1/events?limit=100&offset=2',
+  ])
+  expect(fetch.mock.calls.every(([, options]) => options.signal === signal)).toBe(true)
+})
+
 describe('подключение к API событий через общий клиент', () => {
   const operations = [
+    {
+      name: 'оценка',
+      path: '/api/v1/events/event/rating',
+      method: 'PUT',
+      run: () => rateEvent('event', 4),
+    },
     { name: 'категории', path: '/api/v1/categories', method: 'GET', run: () => fetchCategories() },
     {
       name: 'карточка',

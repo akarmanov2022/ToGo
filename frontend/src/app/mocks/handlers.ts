@@ -30,12 +30,14 @@ let user: Schema['CurrentUser']
 let events: Event[]
 let participants: Map<string, string[]>
 let comments: Map<string, Schema['Comment'][]>
+let ratings: Map<string, Map<string, number>>
 
 export function resetMockData() {
   user = structuredClone(currentUser)
   events = createEventFixtures()
   participants = new Map(events.map((event) => [event.id, [event.organizer.id]]))
   comments = new Map(events.map((event) => [event.id, []]))
+  ratings = new Map(events.map((event) => [event.id, new Map()]))
 }
 resetMockData()
 
@@ -137,7 +139,16 @@ function selectedCategories(value: unknown): Schema['EventCategory'][] {
   return value.map((item) => category(item, 'categories'))
 }
 function profileCounts(id: string) {
+  const scores = events
+    .filter((event) => event.organizer.id === id)
+    .flatMap((event) => [...(ratings.get(event.id)?.values() ?? [])])
   return {
+    organizerRating: {
+      average: scores.length
+        ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
+        : 0,
+      count: scores.length,
+    },
     createdEventsCount: events.filter((event) => event.organizer.id === id).length,
     visitedEventsCount: events.filter(
       (event) => view(event).state === 'finished' && participants.get(event.id)!.includes(id),
@@ -150,6 +161,7 @@ function summary(id: string): Schema['UserSummary'] {
 }
 function view(event: Event): Event {
   const members = participants.get(event.id)!
+  const scores = [...(ratings.get(event.id)?.values() ?? [])]
   if (event.state === 'recruiting' && Date.now() >= Date.parse(event.registrationClosesAt)) {
     event.state = members.length < event.minUsers ? 'cancelled_by_system' : 'registration_closed'
   }
@@ -157,6 +169,13 @@ function view(event: Event): Event {
     event.state = 'finished'
   return {
     ...event,
+    myRating: ratings.get(event.id)?.get(user.id) ?? null,
+    rating: scores.length
+      ? {
+          average: Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10,
+          count: scores.length,
+        }
+      : null,
     organizer: summary(event.organizer.id),
     participantsCount: members.length,
     availableSlots: event.maxUsers - members.length,
@@ -256,6 +275,26 @@ export const handlers = [
     })
   }),
   endpoint('get', '/api/v1/categories', () => HttpResponse.json(categories)),
+  endpoint('put', '/api/v1/events/{eventId}/rating', async (request, params) => {
+    const event = findEvent(params)
+    const data = await body(request, ['score'])
+    if (
+      typeof data.score !== 'number' ||
+      !Number.isInteger(data.score) ||
+      data.score < 1 ||
+      data.score > 5
+    )
+      invalid('score')
+    if (event.organizer.id === user.id || !participants.get(event.id)!.includes(user.id))
+      fail(403, 'FORBIDDEN', 'Оценить событие могут только участники, кроме организатора')
+    if (event.state !== 'finished')
+      fail(409, 'INVALID_EVENT_STATE', 'Можно оценить только завершённое событие')
+    const scores = ratings.get(event.id) ?? new Map<string, number>()
+    if (scores.has(user.id)) fail(409, 'ALREADY_RATED', 'Вы уже оценили это событие')
+    scores.set(user.id, data.score as number)
+    ratings.set(event.id, scores)
+    return HttpResponse.json(view(event))
+  }),
   endpoint('get', '/api/v1/events', (request) => {
     const params = new URL(request.url).searchParams
     const query = (params.get('query') ?? '').trim().toLowerCase()
