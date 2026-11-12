@@ -37,10 +37,10 @@ class NotificationDeliveryService(
             return
         }
         try {
-            if (notice.kind == "comment") {
-                sender.comment(notice.user.tgId, text(notice), checkNotNull(notice.event.id))
-            } else {
-                sender.message(notice.user.tgId, text(notice))
+            when (notice.kind) {
+                "comment" -> sender.comment(notice.user.tgId, text(notice), checkNotNull(notice.event.id))
+                "rating" -> sender.rating(notice.user.tgId, text(notice), checkNotNull(notice.event.id))
+                else -> sender.message(notice.user.tgId, text(notice))
             }
             notice.sentAt = now
         } catch (_: BotBlocked) {
@@ -65,6 +65,7 @@ class NotificationDeliveryService(
             "reminder_day" -> "Напоминание: встреча «${event.title}» начнётся через сутки, $time UTC."
             "reminder_hour" -> "Напоминание: встреча «${event.title}» начнётся через час, $time UTC."
             "comment" -> "Новый комментарий к событию «${event.title}»."
+            "rating" -> "Встреча «${event.title}» завершилась. Оцените её:"
             else -> error("Неизвестный вид уведомления")
         }
     }

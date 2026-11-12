@@ -149,4 +149,12 @@ class MigrationTest(@Autowired private val jdbc: JdbcTemplate) {
             .withFailMessage("Database doesnt reject a rating of an unknown event")
             .isInstanceOf(DataIntegrityViolationException::class.java)
     }
+
+    @Test
+    fun `rating request notification is accepted`() {
+        val rows = Rows(jdbc)
+        assertThat(rows.notification(rows.user(), rows.event(), "rating"))
+            .withFailMessage("Database doesnt accept a rating request notification")
+            .isNotNull()
+    }
 }

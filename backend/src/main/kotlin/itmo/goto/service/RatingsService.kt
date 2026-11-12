@@ -25,17 +25,27 @@ class RatingsService(
     private val notifications: NotificationQueue,
 ) : RatingsApiService {
     @Transactional(noRollbackFor = [ApiFailure::class])
-    override fun rateEvent(eventId: UUID, rateEventRequest: RateEventRequest): Card {
+    override fun rateEvent(eventId: UUID, rateEventRequest: RateEventRequest): Card =
+        rate(eventId, identity.user(), rateEventRequest.score)
+
+    /**
+     * Saves the only [score] that [user] gives the event, refusing a second one.
+     */
+    @Transactional(noRollbackFor = [ApiFailure::class])
+    fun rate(eventId: UUID, user: UUID, score: Int): Card {
         val event = events.locked(eventId) ?: throw ApiFailure(ApiError.Code.EVENT_NOT_FOUND, "Событие не найдено")
         val now = clock.instant()
         val decision = event.meeting().rate(now)
         notifications.settle(event, decision.fold({ it }, { meeting, _ -> meeting }), now)
-        when (event.role(identity.user(), participations.existsByEventIdAndUserId(eventId, identity.user()))) {
-            Role.ORGANIZER -> throw ApiFailure(ApiError.Code.FORBIDDEN, "Организатор не может оценить своё событие")
-            Role.OUTSIDER -> throw ApiFailure(ApiError.Code.FORBIDDEN, "Оценить событие могут только его участники")
-            Role.PARTICIPANT -> decision.fold({}, { _, refusal -> throw ApiFailure(refusal) })
+        val failure = when (event.role(user, participations.existsByEventIdAndUserId(eventId, user))) {
+            Role.ORGANIZER -> ApiFailure(ApiError.Code.FORBIDDEN, "Организатор не может оценить своё событие")
+            Role.OUTSIDER -> ApiFailure(ApiError.Code.FORBIDDEN, "Оценить событие могут только его участники")
+            Role.PARTICIPANT -> decision.fold({ null }, { _, refusal -> ApiFailure(refusal) })
+                ?: ApiFailure(ApiError.Code.ALREADY_RATED, "Вы уже оценили это событие")
+                    .takeIf { participations.score(eventId, user) != null }
         }
-        ratings.rate(eventId, identity.user(), rateEventRequest.score, now)
-        return events.findById(eventId).orElseThrow().card(identity.user(), true, rateEventRequest.score)
+        if (failure != null) throw failure
+        ratings.rate(eventId, user, score, now)
+        return events.findById(eventId).orElseThrow().card(user, true, score)
     }
 }

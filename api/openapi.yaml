@@ -582,7 +582,7 @@ paths:
         Только участник события, кроме организатора; не участнику и организатору — 403 FORBIDDEN.
         Оценить можно только событие в finished, иначе 409 INVALID_EVENT_STATE.
         Перед проверкой событие приводится к актуальному состоянию.
-        Повторная оценка заменяет прежнюю; срока давности нет.
+        Один пользователь оценивает событие один раз: повторная оценка — 409 ALREADY_RATED.
       requestBody:
         required: true
         content:
@@ -686,7 +686,7 @@ components:
       description: |
         Конфликт с текущим состоянием события. Код зависит от операции:
         REGISTRATION_CLOSED, INVALID_EVENT_STATE, EVENT_FULL,
-        CAPACITY_BELOW_PARTICIPANTS, ORGANIZER_CANNOT_LEAVE или SCHEDULE_CONFLICT.
+        CAPACITY_BELOW_PARTICIPANTS, ORGANIZER_CANNOT_LEAVE, SCHEDULE_CONFLICT или ALREADY_RATED.
       content:
         application/json:
           schema:
@@ -774,10 +774,7 @@ components:
           minimum: 0
           description: Число событий в finished, в которых пользователь участвовал, включая организованные им
         organizerRating:
-          allOf:
-            - $ref: '#/components/schemas/Rating'
-          nullable: true
-          description: Среднее всех оценок событий, организованных пользователем; null, если оценок нет
+          $ref: '#/components/schemas/Rating'
 
     UserProfile:
       type: object
@@ -815,10 +812,7 @@ components:
           minimum: 0
           description: Число событий в finished, в которых пользователь участвовал, включая организованные им
         organizerRating:
-          allOf:
-            - $ref: '#/components/schemas/Rating'
-          nullable: true
-          description: Среднее всех оценок событий, организованных пользователем; null, если оценок нет
+          $ref: '#/components/schemas/Rating'
 
     UpdateProfileRequest:
       type: object
@@ -1169,17 +1163,20 @@ components:
     Rating:
       type: object
       required: [average, count]
+      description: |
+        Средняя оценка. У события null, если оценок нет. Рейтинг организатора
+        (organizerRating в профиле) всегда задан и равен 0.0 при count 0.
       properties:
         average:
           type: number
           format: double
-          minimum: 1
+          minimum: 0
           maximum: 5
-          description: Среднее оценок, округлённое до одного знака после запятой
+          description: Сумма оценок, делённая на их число, округлённая до одного знака после запятой; 0.0 без оценок
         count:
           type: integer
           format: int32
-          minimum: 1
+          minimum: 0
           description: Число оценок
 
     RateEventRequest:
@@ -1236,6 +1233,7 @@ components:
             - CAPACITY_BELOW_PARTICIPANTS
             - ORGANIZER_CANNOT_LEAVE
             - SCHEDULE_CONFLICT
+            - ALREADY_RATED
             - INTERNAL_ERROR
         message:
           type: string
