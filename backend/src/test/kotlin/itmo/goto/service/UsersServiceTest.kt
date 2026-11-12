@@ -242,6 +242,69 @@ class UsersServiceTest(
     }
 
     @Test
+    fun `other profile averages every rating of organized events`() {
+        val rows = Rows(jdbc)
+        val other = rows.user(UUID.randomUUID(), Random.nextLong(1, 10_000_000_000), null)
+        val first = rows.event(other, "finished")
+        val second = rows.event(other, "finished")
+        rows.rating(first, rows.user(), 5)
+        rows.rating(first, rows.user(), 5)
+        rows.rating(second, rows.user(), 2)
+        assertThat(service.getUser(other).organizerRating?.average)
+            .withFailMessage("Other profile doesnt average the ratings 5, 5 and 2 of two events to 4.0")
+            .isEqualTo(4.0)
+    }
+
+    @Test
+    fun `other profile counts every rating of organized events`() {
+        val rows = Rows(jdbc)
+        val other = rows.user(UUID.randomUUID(), Random.nextLong(1, 10_000_000_000), null)
+        val counts = List(Random.nextInt(1, 4)) { Random.nextInt(1, 4) }
+        counts.forEach { count ->
+            val event = rows.event(other, "finished")
+            repeat(count) { rows.rating(event, rows.user(), Random.nextInt(1, 6)) }
+        }
+        assertThat(service.getUser(other).organizerRating?.count)
+            .withFailMessage("Other profile doesnt count every rating of organized events")
+            .isEqualTo(counts.sum())
+    }
+
+    @Test
+    fun `other profile skips ratings of events organized by others`() {
+        val rows = Rows(jdbc)
+        val other = rows.user(UUID.randomUUID(), Random.nextLong(1, 10_000_000_000), null)
+        val event = rows.event(rows.user(), "finished")
+        rows.participant(event, other)
+        rows.rating(event, rows.user(), Random.nextInt(1, 6))
+        assertThat(service.getUser(other).organizerRating?.count)
+            .withFailMessage("Other profile counts ratings of events organized by others")
+            .isZero()
+    }
+
+    @Test
+    fun `current user without ratings has an organizer rating of zero`() {
+        val rows = Rows(jdbc)
+        rows.user(holder, Random.nextLong(1, 10_000_000_000), null)
+        rows.event(holder, "finished")
+        assertThat(service.getCurrentUser().organizerRating?.average)
+            .withFailMessage("Current user without ratings doesnt have an organizer rating of 0.0")
+            .isZero()
+    }
+
+    @Test
+    fun `current user sees a changed rating`() {
+        val rows = Rows(jdbc)
+        rows.user(holder, Random.nextLong(1, 10_000_000_000), null)
+        val event = rows.event(holder, "finished")
+        val rating = rows.rating(event, rows.user(), Random.nextInt(1, 3))
+        val score = Random.nextInt(3, 6)
+        jdbc.update("UPDATE event_ratings SET score = ? WHERE id = ?", score, rating)
+        assertThat(service.getCurrentUser().organizerRating?.average)
+            .withFailMessage("Current user doesnt see a changed rating")
+            .isEqualTo(score.toDouble())
+    }
+
+    @Test
     fun `unknown profile answers user not found`() {
         assertThatThrownBy { service.getUser(UUID.randomUUID()) }
             .extracting("code")

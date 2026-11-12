@@ -7,6 +7,7 @@ import itmo.goto.domain.Schedule
 import itmo.goto.domain.State
 import itmo.goto.generated.model.EventCategory
 import itmo.goto.generated.model.EventState
+import itmo.goto.generated.model.Rating
 import itmo.goto.generated.model.UserSummary
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
@@ -17,6 +18,7 @@ import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
+import org.hibernate.annotations.Formula
 import org.hibernate.annotations.UuidGenerator
 import java.time.Instant
 import java.time.ZoneOffset
@@ -59,6 +61,12 @@ class Event(
 
     private var participantsCount: Int = 1
 
+    @Formula("(SELECT round(avg(r.score), 1) FROM event_ratings r WHERE r.event_id = id)")
+    private var average: Double? = null
+
+    @Formula("(SELECT count(*) FROM event_ratings r WHERE r.event_id = id)")
+    private var ratings: Int = 0
+
     fun meeting(): Meeting = Meeting(
         Schedule(registrationClosesAt, startsAt, endsAt),
         Limits(minUsers, maxUsers),
@@ -77,7 +85,7 @@ class Event(
         else -> Role.OUTSIDER
     }
 
-    fun card(viewer: UUID, participant: Boolean): Card = Card(
+    fun card(viewer: UUID, participant: Boolean, score: Int?): Card = Card(
         checkNotNull(id) { "Event has no id before it is saved" },
         title,
         description,
@@ -97,5 +105,7 @@ class Event(
         meeting().free(),
         participant || organizer.id == viewer,
         organizer.id == viewer,
+        average?.let { Rating(it, ratings) },
+        score,
     )
 }

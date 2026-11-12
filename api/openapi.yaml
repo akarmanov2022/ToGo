@@ -37,6 +37,8 @@ tags:
     description: События и участие
   - name: Comments
     description: Комментарии участников под событием
+  - name: Ratings
+    description: Оценки завершённых событий
 
 security:
   - bearerAuth: []
@@ -569,6 +571,40 @@ paths:
         '500':
           $ref: '#/components/responses/UnexpectedError'
 
+  /api/v1/events/{eventId}/rating:
+    parameters:
+      - $ref: '#/components/parameters/EventId'
+    put:
+      tags: [Ratings]
+      operationId: rateEvent
+      summary: Оценить завершённое событие
+      description: |
+        Только участник события, кроме организатора; не участнику и организатору — 403 FORBIDDEN.
+        Оценить можно только событие в finished, иначе 409 INVALID_EVENT_STATE.
+        Перед проверкой событие приводится к актуальному состоянию.
+        Один пользователь оценивает событие один раз: повторная оценка — 409 ALREADY_RATED.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RateEventRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/EventResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/UnexpectedError'
+
 components:
   securitySchemes:
     bearerAuth:
@@ -650,7 +686,7 @@ components:
       description: |
         Конфликт с текущим состоянием события. Код зависит от операции:
         REGISTRATION_CLOSED, INVALID_EVENT_STATE, EVENT_FULL,
-        CAPACITY_BELOW_PARTICIPANTS, ORGANIZER_CANNOT_LEAVE или SCHEDULE_CONFLICT.
+        CAPACITY_BELOW_PARTICIPANTS, ORGANIZER_CANNOT_LEAVE, SCHEDULE_CONFLICT или ALREADY_RATED.
       content:
         application/json:
           schema:
@@ -737,6 +773,8 @@ components:
           format: int32
           minimum: 0
           description: Число событий в finished, в которых пользователь участвовал, включая организованные им
+        organizerRating:
+          $ref: '#/components/schemas/Rating'
 
     UserProfile:
       type: object
@@ -773,6 +811,8 @@ components:
           format: int32
           minimum: 0
           description: Число событий в finished, в которых пользователь участвовал, включая организованные им
+        organizerRating:
+          $ref: '#/components/schemas/Rating'
 
     UpdateProfileRequest:
       type: object
@@ -940,6 +980,18 @@ components:
         isOrganizer:
           type: boolean
           description: Текущий пользователь — организатор
+        rating:
+          allOf:
+            - $ref: '#/components/schemas/Rating'
+          nullable: true
+          description: Средняя оценка события участниками; null, если оценок нет
+        myRating:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 5
+          nullable: true
+          description: Оценка текущего пользователя; null, если он её не ставил
 
     CreateEventRequest:
       type: object
@@ -1108,6 +1160,37 @@ components:
           maxLength: 1000
           pattern: '[\s\S]*\S[\s\S]*'
 
+    Rating:
+      type: object
+      required: [average, count]
+      description: |
+        Средняя оценка. У события null, если оценок нет. Рейтинг организатора
+        (organizerRating в профиле) всегда задан и равен 0.0 при count 0.
+      properties:
+        average:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 5
+          description: Сумма оценок, делённая на их число, округлённая до одного знака после запятой; 0.0 без оценок
+        count:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Число оценок
+
+    RateEventRequest:
+      type: object
+      additionalProperties: false
+      required: [score]
+      properties:
+        score:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 5
+          description: Оценка от 1 до 5
+
     CommentPage:
       type: object
       required: [items, total, limit, offset]
@@ -1150,6 +1233,7 @@ components:
             - CAPACITY_BELOW_PARTICIPANTS
             - ORGANIZER_CANNOT_LEAVE
             - SCHEDULE_CONFLICT
+            - ALREADY_RATED
             - INTERNAL_ERROR
         message:
           type: string

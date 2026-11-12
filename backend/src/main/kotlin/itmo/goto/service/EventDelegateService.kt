@@ -69,7 +69,7 @@ class EventDelegateService(
             {
                 notifications.settle(event, it, now)
                 change()
-                event.card(user, participant)
+                event.card(user, participant, participations.score(checkNotNull(event.id), user))
             },
             { meeting, refusal ->
                 notifications.settle(event, meeting, now)

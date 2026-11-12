@@ -42,9 +42,11 @@ class EventDiscoveryService(
                 .limit(limit)
                 .scroll(position(offset))
         }.content
-        val joined = participations.joined(identity.user(), found.map { checkNotNull(it.id) }).toSet()
+        val ids = found.map { checkNotNull(it.id) }
+        val joined = participations.joined(identity.user(), ids).toSet()
+        val scores = participations.scores(identity.user(), ids).associate { it.event.id to it.score }
         return EventPage(
-            found.map { it.card(identity.user(), it.id in joined) },
+            found.map { it.card(identity.user(), it.id in joined, scores[it.id]) },
             events.count(filter),
             limit,
             offset,
@@ -55,7 +57,11 @@ class EventDiscoveryService(
     fun event(id: UUID): Card {
         val event = events.locked(id) ?: throw ApiFailure(ApiError.Code.EVENT_NOT_FOUND, "Событие не найдено")
         notifications.settle(event, event.meeting().current(clock.instant()), clock.instant())
-        return event.card(identity.user(), participations.existsByEventIdAndUserId(id, identity.user()))
+        return event.card(
+            identity.user(),
+            participations.existsByEventIdAndUserId(id, identity.user()),
+            participations.score(id, identity.user()),
+        )
     }
 
     private fun position(offset: Int): ScrollPosition =

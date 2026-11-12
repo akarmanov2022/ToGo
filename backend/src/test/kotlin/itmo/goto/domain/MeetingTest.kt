@@ -510,6 +510,76 @@ class MeetingTest {
             .isInstanceOf(IllegalArgumentException::class.java)
     }
 
+    @Test
+    fun `finished meeting accepts a rating`() {
+        val closes = moment()
+        assertThat(
+            refusal(
+                Meeting(schedule(closes), Limits(1, 10), 3, State.FINISHED)
+                    .rate(closes.plus(Duration.ofHours(Random.nextLong(5, 1000)))),
+            ),
+        )
+            .withFailMessage("Finished meeting refuses a rating")
+            .isNull()
+    }
+
+    @Test
+    fun `meeting before its end refuses a rating`() {
+        val closes = moment()
+        val state = listOf(State.RECRUITING, State.REGISTRATION_CLOSED).random()
+        assertThat(
+            refusal(
+                Meeting(schedule(closes), Limits(1, 10), 3, state)
+                    .rate(closes.plus(Duration.ofHours(5)).minusSeconds(Random.nextLong(1, 3600))),
+            ),
+        )
+            .withFailMessage("Meeting before its end doesnt refuse a rating as an invalid state")
+            .isEqualTo(Refusal.INVALID_EVENT_STATE)
+    }
+
+    @Test
+    fun `cancelled meeting refuses a rating`() {
+        val closes = moment()
+        assertThat(
+            refusal(
+                Meeting(
+                    schedule(closes),
+                    Limits(1, 10),
+                    3,
+                    listOf(State.CANCELLED_BY_ORGANIZER, State.CANCELLED_BY_SYSTEM).random(),
+                ).rate(closes.plus(Duration.ofHours(Random.nextLong(5, 1000)))),
+            ),
+        )
+            .withFailMessage("Cancelled meeting doesnt refuse a rating as an invalid state")
+            .isEqualTo(Refusal.INVALID_EVENT_STATE)
+    }
+
+    @Test
+    fun `meeting past its end accepts a rating before the late transition`() {
+        val closes = moment()
+        assertThat(
+            refusal(
+                Meeting(schedule(closes), Limits(1, 10), 3, State.REGISTRATION_CLOSED)
+                    .rate(closes.plus(Duration.ofHours(Random.nextLong(5, 1000)))),
+            ),
+        )
+            .withFailMessage("Meeting past its end refuses a rating before the late transition")
+            .isNull()
+    }
+
+    @Test
+    fun `rated meeting past its end is finished`() {
+        val closes = moment()
+        assertThat(
+            outcome(
+                Meeting(schedule(closes), Limits(1, 10), 3, State.REGISTRATION_CLOSED)
+                    .rate(closes.plus(Duration.ofHours(Random.nextLong(5, 1000)))),
+            ).state(),
+        )
+            .withFailMessage("Rated meeting past its end isnt finished")
+            .isEqualTo(State.FINISHED)
+    }
+
     private fun moment(): Instant = Instant.ofEpochSecond(Random.nextLong(1_700_000_000, 1_900_000_000))
 
     private fun schedule(closes: Instant): Schedule =

@@ -9,6 +9,8 @@ import itmo.goto.generated.api.CommentsApiController
 import itmo.goto.generated.api.CommentsApiService
 import itmo.goto.generated.api.EventsApiController
 import itmo.goto.generated.api.EventsApiService
+import itmo.goto.generated.api.RatingsApiController
+import itmo.goto.generated.api.RatingsApiService
 import itmo.goto.generated.api.UsersApiController
 import itmo.goto.generated.api.UsersApiService
 import org.assertj.core.api.Assertions.assertThat
@@ -41,6 +43,7 @@ import kotlin.random.Random
         CategoriesApiController::class,
         CommentsApiController::class,
         EventsApiController::class,
+        RatingsApiController::class,
         UsersApiController::class,
     ],
     properties = ["telegram.bot-token=7000000001:AAsecurity-test-token"],
@@ -62,6 +65,9 @@ class SecurityTest(
 
     @MockitoBean
     private lateinit var events: EventsApiService
+
+    @MockitoBean
+    private lateinit var ratings: RatingsApiService
 
     @MockitoBean
     private lateinit var users: UsersApiService
@@ -94,6 +100,17 @@ class SecurityTest(
     fun `event comments without token answer unauthorized`() {
         assertThat(mvc.get().uri("/api/v1/events/{eventId}/comments", UUID.randomUUID()))
             .withFailMessage("Event comments without a token dont answer 401")
+            .hasStatus(HttpStatus.UNAUTHORIZED)
+    }
+
+    @Test
+    fun `event rating without token answers unauthorized`() {
+        assertThat(
+            mvc.put().uri("/api/v1/events/{eventId}/rating", UUID.randomUUID())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"score":${Random.nextInt(1, 6)}}"""),
+        )
+            .withFailMessage("Event rating without a token doesnt answer 401")
             .hasStatus(HttpStatus.UNAUTHORIZED)
     }
 

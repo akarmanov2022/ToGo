@@ -35,6 +35,7 @@ class ApiFailure(
         ApiError.Code.CAPACITY_BELOW_PARTICIPANTS,
         ApiError.Code.ORGANIZER_CANNOT_LEAVE,
         ApiError.Code.SCHEDULE_CONFLICT,
+        ApiError.Code.ALREADY_RATED,
         -> HttpStatus.CONFLICT
         ApiError.Code.INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR
     }

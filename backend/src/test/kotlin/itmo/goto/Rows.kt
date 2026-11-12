@@ -87,6 +87,14 @@ class Rows(private val jdbc: JdbcTemplate) {
         at.atOffset(ZoneOffset.UTC),
     )!!
 
+    fun rating(event: UUID, user: UUID, score: Int): UUID = jdbc.queryForObject(
+        "INSERT INTO event_ratings (event_id, user_id, score) VALUES (?, ?, ?) RETURNING id",
+        UUID::class.java,
+        event,
+        user,
+        score,
+    )!!
+
     fun interest(user: UUID, category: String): Int =
         jdbc.update("INSERT INTO user_categories (user_id, category) VALUES (?, ?)", user, category)
 

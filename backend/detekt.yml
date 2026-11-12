@@ -3,6 +3,9 @@ build:
 complexity:
   LongParameterList:
     ignoreAnnotated: [ 'Entity' ]
+  # Meeting holds every event rule (join, leave, change, cancel, rate) in one domain object, as design.md decision 4 asks
+  TooManyFunctions:
+    thresholdInClasses: 12
 performance:
   SpreadOperator:
     excludes: ['**/GotoApplication.kt']
