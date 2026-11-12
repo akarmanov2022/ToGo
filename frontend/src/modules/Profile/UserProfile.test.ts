@@ -127,8 +127,11 @@ it.each([undefined, 'other'])('показывает рейтинг под фот
   const wrapper = render(userId)
   await flushPromises()
   expect(wrapper.get('.organizer-rating').text()).toContain('4.3')
+  expect(wrapper.findAll('.rating-stars svg')).toHaveLength(5)
+  expect(wrapper.findAll('.rating-stars svg.filled')).toHaveLength(4)
+  expect(wrapper.get('.rating-caption').text()).toBe('На основе 3 оценок')
   expect(wrapper.get('.organizer-rating').attributes('aria-label')).toBe(
-    'Рейтинг организатора: 4.3 из 5',
+    'Рейтинг организатора: 4.3',
   )
 })
 
@@ -136,6 +139,10 @@ it('показывает 0.0 без оценок, не вычисляя рейт
   const wrapper = render('other')
   await flushPromises()
   expect(wrapper.get('.organizer-rating').text()).toContain('0.0')
+  expect(wrapper.get('.rating-empty').text()).toBe('Пока нет оценок')
+  expect(wrapper.get('.organizer-rating').classes()).toContain('organizer-rating--empty')
+  expect(wrapper.get('.organizer-rating').text()).not.toContain('из 5')
+  expect(wrapper.findAll('.rating-stars svg.filled')).toHaveLength(0)
 })
 
 it('показывает созданные события другого пользователя со всех страниц, но не чужие участия', async () => {
