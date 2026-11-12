@@ -6,7 +6,6 @@ import { beforeAll, expect, it } from 'vitest'
 const eslint = new ESLint({ cwd: fileURLToPath(new URL('../../', import.meta.url)) })
 
 beforeAll(async () => {
-  // Холодная загрузка Vue/TS-парсеров и графа проекта — отдельный setup, не время проверки правила.
   await eslint.lintText('export {}', { filePath: 'src/app/architecture-probe.ts' })
 }, 30_000)
 

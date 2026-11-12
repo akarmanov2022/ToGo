@@ -8,20 +8,10 @@ export interface CardAction {
   label: string
 }
 
-/**
- * Главная страница по обновлённой аналитике: только предстоящие события,
- * без отменённых и завершённых; порядок — по возрастанию начала.
- */
 export function isVisibleInFeed(event: Event): boolean {
   return isActiveEvent(event)
 }
 
-/**
- * Кнопка карточки события по таблице 3.1 аналитики.
- * Организатор видит «Отменить событие» (отмена — только с подтверждением) и никогда
- * не может присоединиться к своему событию. Участник видит «Отписаться от события».
- * Забитое событие, закрытый набор, отмена и завершение делают кнопку недоступной.
- */
 export function cardAction(event: Event, now: Date): CardAction {
   const actions = availableActions(event, now)
   if (actions.canCancel) return { kind: 'cancel', label: 'Отменить событие' }

@@ -6,11 +6,6 @@ export interface MockModeInput {
   demo?: boolean
 }
 
-/**
- * В Telegram всегда используется настоящий API, даже в demo-сборке.
- * Моки разрешены только вне Telegram для разработки и отдельной demo-сборки.
- * Явный false отключает их; production не включает их ни при каком флаге.
- */
 export function resolveMockMode({
   dev,
   envFlag,
@@ -26,7 +21,6 @@ export function resolveMockMode({
   return !hasInitData
 }
 
-/** initData для локального демо-входа; MSW принимает только это значение. */
 export const MOCK_INIT_DATA = 'local-msw-init-data'
 
 export function shouldUseMocks(): boolean {

@@ -19,7 +19,6 @@ export const emptySchedule = (): EventScheduleValue => ({
 
 const pad = (value: number) => String(value).padStart(2, '0')
 
-/** Временное решение команды: завтра с 00:00, не через 24 часа. */
 export function earliestEventStart(now: Date): Date {
   const result = new Date(now)
   result.setDate(result.getDate() + 1)
@@ -31,7 +30,6 @@ export function localDate(value: Date): string {
   return `${String(value.getFullYear()).padStart(4, '0')}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`
 }
 
-/** Preserve local wall time and clamp the day to the last day of the next month. */
 export function addCalendarMonth(value: Date): Date {
   const result = new Date(value)
   const day = result.getDate()
@@ -53,7 +51,6 @@ function validDateParts(year: number, month: number, day: number): boolean {
   )
 }
 
-/** Reject timezone-less and normalized invalid dates rather than relying on Date.parse alone. */
 export function parseScheduleTimestamp(value: string): Date | null {
   const match =
     /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/.exec(value)
@@ -78,7 +75,6 @@ export function toLocalDateTime(value: string): LocalDateTime {
     : { date: '', time: '' }
 }
 
-/** Browser timezone, including the offset at the selected date (not today's DST offset). */
 export function toScheduleTimestamp({ date, time }: LocalDateTime): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) return ''
   const [year, month, day] = date.split('-').map(Number) as [number, number, number]
@@ -87,7 +83,6 @@ export function toScheduleTimestamp({ date, time }: LocalDateTime): string {
   const parsed = new Date(0)
   parsed.setFullYear(year, month - 1, day)
   parsed.setHours(hour, minute, 0, 0)
-  // A nonexistent local time during a DST jump must not silently move forward.
   if (localDate(parsed) !== date || parsed.getHours() !== hour || parsed.getMinutes() !== minute)
     return ''
   const offset = -parsed.getTimezoneOffset()

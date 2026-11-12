@@ -77,7 +77,6 @@ it('категория → запрос OSM → маркеры → выбор т
       expect(query.replace(/["\s]/g, '')).toContain(active.tag)
       expect(query).toContain('(59.915, 30.29, 59.955, 30.38)')
       expect(query).toContain('out body center')
-      // Типичный ответ Overpass: парк — полигон с center, кинотеатр — node с lat/lon.
       return Promise.resolve(
         json({
           elements: [

@@ -69,10 +69,8 @@ async function saveProfile() {
     const saved = await updateCurrentUser({
       name: name.value.trim(),
       city: city.value.trim() ? city.value.trim() : null,
-      // Поле пока обязательно в PUT-контракте, но больше не редактируется в UI.
       categories: [...profile.value.categories],
     })
-    // Поздний ответ старой сессии не должен восстанавливать очищенный приватный кеш.
     if (auth.status !== 'authenticated' || auth.user?.id !== saved.id) return
     queryClient.setQueryData(currentUserKey(saved.id), saved)
     editing.value = false

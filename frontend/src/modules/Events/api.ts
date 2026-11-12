@@ -128,8 +128,6 @@ export function rateEvent(eventId: string, score: number): Promise<EventDto> {
   })
 }
 
-// В контракте пока нет фильтра по организатору: просматриваем публичные страницы,
-// не используя participating=true (это личные участия текущего пользователя).
 export async function fetchOrganizerEvents(
   userId: string,
   signal?: AbortSignal,
@@ -164,8 +162,6 @@ export async function fetchMyEvents(params: {
   if (params.startsFrom) query.set('startsFrom', params.startsFrom)
   if (params.startsTo) query.set('startsTo', params.startsTo)
   if (params.state) query.set('state', params.state)
-  // order пока нет в контракте. Сортируем полный список, не одну усечённую страницу.
-  // После реализации 1.8/8.4 перейти на серверную сортировку и пагинацию.
   const items: EventDto[] = []
   let offset = 0
   while (true) {

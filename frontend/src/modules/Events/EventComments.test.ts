@@ -22,13 +22,9 @@ const comment = {
 }
 const emptyPage = () => ({ items: [], total: 0, limit: 20, offset: 0 })
 
-// Важно: блок с фигурными скобками. Стрелка «() => apiRequest.mockResolvedValue(...)»
-// возвращала бы сам мок, и vitest вызывал бы его как cleanup-функцию после теста.
 beforeEach(() => {
   apiRequest.mockResolvedValue(emptyPage())
 })
-// Отмонтируем компоненты до очистки кэша и сброса моков, иначе наблюдатель
-// TanStack Query успевает доделать свой запрос уже внутри следующего теста.
 afterEach(async () => {
   wrappers.forEach((wrapper) => wrapper.unmount())
   wrappers.length = 0

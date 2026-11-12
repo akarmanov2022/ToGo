@@ -18,7 +18,6 @@ export function placesQuery(category: string, bounds?: PlaceBounds): string {
   const selectors = filters[category]
   if (!Object.hasOwn(filters, category)) throw new Error('Выберите категорию места')
   const boxes = placeBoundsParts(bounds)
-  // Резервный поиск исходных тегов: только текущая область, не весь город.
   const statements = selectors!
     .flatMap((tags) => {
       const filter = Object.entries(tags)
@@ -62,7 +61,6 @@ export function parsePlaces(
     const place = {
       id: `osm-${element.type}-${element.id}`,
       name: tags['name:ru'] || tags.name,
-      // У OSM адрес может отсутствовать: не выдумываем улицу или номер дома.
       address: address
         ? `${tags['name:ru'] || tags.name}, ${address}`
         : tags['name:ru'] || tags.name,
@@ -84,19 +82,14 @@ export async function fetchPlaces(
   const query = placesQuery(category, bounds)
   try {
     const places = await fetchVectorPlaces(category, signal, bounds)
-    // Для редких настольных клубов векторная схема не сохраняет board_games=yes.
-    // Пустую выдачу этой категории дополнительно проверяем по исходным тегам OSM.
     if (places.length || category !== 'BOARD_GAMES') return places
   } catch (error) {
     if (signal?.aborted || error instanceof PlaceSearchAreaError) throw error
   }
   let error = new Error('Сервис мест перегружен. Повторите через 30 секунд.')
-  // Не зацикливаем ретраи и не отправляем один поиск нескольким серверам параллельно.
   for (const endpoint of [overpassEndpoint, overpassBackupEndpoint]) {
     signal?.throwIfAborted()
     if (Date.now() < (retryAfter.get(endpoint) ?? 0)) continue
-    // AbortSignal.any/timeout есть не во всех Telegram WebView. Обычный AbortController
-    // поддерживает и смену категории, и ограничение времени запроса в старых WebView.
     const controller = new AbortController()
     const abort = () => controller.abort()
     signal?.addEventListener('abort', abort, { once: true })

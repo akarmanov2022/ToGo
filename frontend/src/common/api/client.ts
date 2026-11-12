@@ -17,7 +17,6 @@ export class NetworkError extends Error {
   }
 }
 
-// Access token exists only in memory. Auth supplies the session hooks during bootstrap.
 let getToken: () => string | null = () => null
 let onUnauthorized: () => void = () => {}
 export function configureApiSession(options: {
@@ -58,7 +57,6 @@ export async function apiRequest<T>(
       return null
     })
     const errorBody = isApiError(data) ? data : null
-    // Do not let a delayed 401 from an old session invalidate a newer session.
     if (response.status === 401 && !anonymous && token === getToken()) onUnauthorized()
     throw new ApiError(response.status, errorBody)
   }

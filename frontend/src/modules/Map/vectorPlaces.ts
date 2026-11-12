@@ -120,7 +120,6 @@ export async function fetchVectorPlaces(
           places.set(place.id, place)
       }
     }
-    // Два запроса одновременно, не сотни тайлов всего города. Ошибка не маскируется частичной выдачей.
     await Promise.all([worker(), worker()])
     return [...places.values()].sort((a, b) => a.name.localeCompare(b.name, 'ru')).slice(0, 300)
   } finally {

@@ -25,7 +25,6 @@ export function placeBounds(bounds: PlaceBounds = initialPlaceBounds): PlaceBoun
   return bbox
 }
 
-/** Leaflet допускает повторные копии мира и область через 180-й меридиан. */
 export function isInPlaceBounds(latitude: number, longitude: number, bounds: PlaceBounds): boolean {
   const [south, west, north, east] = placeBounds(bounds)
   const lon = longitude < west ? longitude + 360 : longitude

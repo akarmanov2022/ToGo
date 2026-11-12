@@ -6,7 +6,6 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
-# Обычный образ сохраняет Telegram-вход; стенд может явно выбрать demo.
 ARG FRONTEND_MODE=production
 RUN if [ "$FRONTEND_MODE" = "demo" ]; then npm run build:demo; \
     elif [ "$FRONTEND_MODE" = "production" ]; then npm run build; \

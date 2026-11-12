@@ -45,7 +45,6 @@ function edit(part: Part, max: number, event: Event) {
 
 function toggle() {
   if (!open.value) {
-    // Значение предпросмотра не заполняет обязательное поле до явного выбора.
     const [hour, minute] = (props.modelValue || '12:00').split(':')
     draft.hours = hour!
     draft.minutes = pad(Math.floor(Number(minute) / 5) * 5)
