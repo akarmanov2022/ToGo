@@ -48,7 +48,7 @@ class EventParticipationService(
                         notifications.joined(event, user, now)
                     }
                     notifications.settle(event, it, now)
-                    event.card(identity.user(), true)
+                    event.card(identity.user(), true, participations.score(id, identity.user()))
                 },
                 { meeting, refusal ->
                     notifications.settle(event, meeting, now)

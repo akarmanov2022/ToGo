@@ -193,6 +193,18 @@ class EventParticipationServiceTest(
     }
 
     @Test
+    fun `participant joining a rated event again sees the score`() {
+        holder()
+        val event = event("finished", now.minus(Duration.ofDays(Random.nextLong(2, 30))))
+        joined(event, holder)
+        val score = Random.nextInt(1, 6)
+        Rows(jdbc).rating(event, holder, score)
+        assertThat(participation.join(event).myRating)
+            .withFailMessage("Participant joining a rated event again doesnt see the score")
+            .isEqualTo(score)
+    }
+
+    @Test
     fun `participant joining a full event again succeeds`() {
         holder()
         val event = event("recruiting", now.plus(minutes(1, 600)))

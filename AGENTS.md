@@ -50,6 +50,9 @@ Never edit generated code; change `api/openapi.yaml` first, then implement the r
 Hand-written classes in `itmo.goto.service` (such as `EventsService`) implement those interfaces.
 `CommentsService` lets only participants, the organizer included, comment an event in any state and shows comments
 to every signed-in user from old to new.
+`RatingsService` lets participants other than the organizer rate a finished event from 1 to 5, a repeated rating
+replacing the earlier one; averages of an event and of an organizer are `@Formula` queries over `event_ratings`, never
+stored, and `ParticipationRepository` finds the caller's own scores.
 `EventsService` hands each operation to the class responsible for it: `EventCreationService` creates events,
 `EventDelegateService` changes and cancels them, `EventParticipationService` joins, leaves, and lists participants, and
 `EventDiscoveryService` lists events and shows one.

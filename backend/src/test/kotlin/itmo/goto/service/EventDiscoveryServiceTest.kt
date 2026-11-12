@@ -225,6 +225,70 @@ class EventDiscoveryServiceTest(
             .isEqualTo("cancelled_by_system")
     }
 
+    @Test
+    fun `details average the ratings to one decimal`() {
+        holder()
+        val event = finished()
+        listOf(5, 4, 4).forEach { Rows(jdbc).rating(event, Rows(jdbc).user(), it) }
+        assertThat(discovery.event(event).rating?.average)
+            .withFailMessage("Details dont average the ratings 5, 4 and 4 to 4.3")
+            .isEqualTo(4.3)
+    }
+
+    @Test
+    fun `details count the ratings`() {
+        holder()
+        val event = finished()
+        val count = Random.nextInt(1, 6)
+        repeat(count) { Rows(jdbc).rating(event, Rows(jdbc).user(), Random.nextInt(1, 6)) }
+        assertThat(discovery.event(event).rating?.count)
+            .withFailMessage("Details dont count the ratings")
+            .isEqualTo(count)
+    }
+
+    @Test
+    fun `listing shows no rating of an unrated event`() {
+        holder()
+        finished()
+        assertThat(discovery.events(emptyList(), 100, 0).items.single().rating)
+            .withFailMessage("Listing shows a rating of an unrated event")
+            .isNull()
+    }
+
+    @Test
+    fun `listing shows the score of the viewer`() {
+        holder()
+        val event = finished()
+        val score = Random.nextInt(1, 6)
+        Rows(jdbc).rating(event, holder, score)
+        assertThat(discovery.events(emptyList(), 100, 0).items.single().myRating)
+            .withFailMessage("Listing doesnt show the score of the viewer")
+            .isEqualTo(score)
+    }
+
+    @Test
+    fun `listing hides the scores of other users`() {
+        holder()
+        val event = finished()
+        Rows(jdbc).rating(event, Rows(jdbc).user(), Random.nextInt(1, 6))
+        assertThat(discovery.events(emptyList(), 100, 0).items.single().myRating)
+            .withFailMessage("Listing shows the score of another user as the score of the viewer")
+            .isNull()
+    }
+
+    @Test
+    fun `details show the score of the viewer`() {
+        holder()
+        val event = finished()
+        val score = Random.nextInt(1, 6)
+        Rows(jdbc).rating(event, holder, score)
+        assertThat(discovery.event(event).myRating)
+            .withFailMessage("Details dont show the score of the viewer")
+            .isEqualTo(score)
+    }
+
+    private fun finished(): UUID = event("finished", now.minus(Duration.ofDays(Random.nextLong(2, 30))))
+
     private fun holder(): UUID = Rows(jdbc).user(holder, Random.nextLong(1, 10_000_000_000), null)
 
     private fun event(state: String, closes: Instant, starts: Instant = closes.plus(minutes(0, 600))): UUID =
